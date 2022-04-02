@@ -1,0 +1,9 @@
+containerenv
+dockerenv
+ifdef
+realpath
+shellcheck
+shfmt
+tmpfs
+workdir
+UNLICENSE
