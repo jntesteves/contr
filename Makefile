@@ -1,4 +1,4 @@
-version = 0.1.0
+version = 0.1.1-pre
 app_name = contr
 build_dir = target
 app_files = contr.template.sh entrypoint.sh
@@ -25,7 +25,7 @@ uninstall:
 
 .PHONY: lint
 lint:
-	shellcheck --severity=style *.sh $(build_dir)/$(app_name)
+	shellcheck *.sh $(build_dir)/$(app_name)
 	shfmt -p -i 4 -ci -d *.sh $(build_dir)/$(app_name)
 
 .PHONY: format

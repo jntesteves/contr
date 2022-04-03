@@ -30,9 +30,9 @@ for file in /root/.* /root/*; do
         log_debug "ln file=$file"
 done
 
-# If HOME is in /var, add a link to it in /home
+# If HOME is in /var/home or similar, add a link to it in /home
 case "$HOME" in
-    /var/home/*)
+    /*/home/*)
         mkdir -p /home
         ln -s "$HOME" "/home/$(basename "$HOME")"
         ;;
