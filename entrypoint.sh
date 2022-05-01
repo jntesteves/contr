@@ -39,9 +39,9 @@ case "$HOME" in
 esac
 
 # shellcheck source=/dev/null
-[ -f "$CONTR_PROFILE_1" ] && . "$CONTR_PROFILE_1" && log_debug "CONTR_PROFILE_1=$CONTR_PROFILE_1"
+[ -f "$CONTR_PROFILE_1" ] && . "$CONTR_PROFILE_1" && log_debug "sourced CONTR_PROFILE_1=$CONTR_PROFILE_1"
 # shellcheck source=/dev/null
-[ -f "$CONTR_PROFILE_2" ] && . "$CONTR_PROFILE_2" && log_debug "CONTR_PROFILE_2=$CONTR_PROFILE_2"
+[ -f "$CONTR_PROFILE_2" ] && . "$CONTR_PROFILE_2" && log_debug "sourced CONTR_PROFILE_2=$CONTR_PROFILE_2"
 
 log_debug "\$*=$*"
 if command -v "$1" >/dev/null; then

@@ -68,7 +68,25 @@ sudo PREFIX=/usr/local make uninstall
 ```
 
 ## Contributing
+We depend on `shellcheck` and `shfmt` for development. These can be easily installed with [asdf](https://asdf-vm.com/).
+
 Every change must pass lint and formatting validation with `make lint`. Formatting can be automatically applied with `make format`.
+
+## To do
+* Security: restore SELinux labels of bind mounted volumes. Something like running `restorecon -rF /path/to/mounted/dir` after the container is destroyed. Check
+[danwalsh](https://opensource.com/article/18/2/selinux-labels-container-runtimes),
+[distroguy](https://blog.christophersmart.com/2021/01/31/podman-volumes-and-selinux/),
+[neoX](https://ahelpme.com/software/podman/change-the-location-of-container-storage-in-podman-with-selinux-enabled/),
+[mutai-josphat](https://computingforgeeks.com/set-selinux-context-label-for-podman-graphroot-directory/),
+[fed500](https://fedoramagazine.org/mlcube-and-podman/),
+[udica](https://github.com/containers/udica),
+[container-selinux-customization](https://github.com/fedora-selinux/container-selinux-customization)
+* Feature: add support for OCI Hooks. This could help the previous item by running a command on a `poststop` hook. It can also improve other parts of contr, like detecting image name on a `prestart` hook (or podman's exclusive `precreate`). Check
+[GitHub](https://github.com/containers/podman/tree/main/pkg/hooks),
+[docs](https://docs.podman.io/en/latest/markdown/podman.1.html#hooks-dir-path),
+[Xin Cheng](https://faun.pub/podman-rootless-container-networking-1cb5a1973b4b)
+* Feature: support using docker (and possibly also others?) in addition to podman for running containers
+* Dev: create container image for development with dependencies pre-installed. Basic dogfooding, contr should be the first user of contr! We should need no dependencies besides a container runtime for developing contr.
 
 ## License
 This is free and unencumbered software released into the public domain.
