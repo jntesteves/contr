@@ -1,6 +1,6 @@
-#!/bin/sh
+#!/usr/bin/env sh
 # SPDX-License-Identifier: Unlicense
-VERSION='0.1.1-pre+dirty (63b2044 2022-04-03)'
+VERSION='0.1.1-pre+dirty (d9a5fdd 2023-05-22)'
 CMD="$(basename "$0")"
 PWD=$(pwd)
 config_dir="$CONTR_CONFIG_DIR"
@@ -71,7 +71,7 @@ sanitize_for_fs() {
 
 read_arguments() {
     log_debug "read_arguments() \$*=$*"
-    unset image
+    image=
     action='podman-run'
     case "$1" in
         --make-config=*) action='make-config-per-image' && image="${1#'--make-config='}" ;;
@@ -119,17 +119,17 @@ set_config_files() {
 
     [ "$environment_file" ] || environment_file="$config_dir/environment"
     log_debug "set_config_files() environment_file='$environment_file'"
-    [ ! -r "$environment_file" ] && unset environment_file &&
+    [ ! -r "$environment_file" ] && environment_file= &&
         log_debug "set_config_files() environment_file unreadable"
 
     [ "$options_file" ] || options_file="$config_dir/options"
     log_debug "set_config_files() options_file='$options_file'"
-    [ ! -r "$options_file" ] && unset options_file &&
+    [ ! -r "$options_file" ] && options_file= &&
         log_debug "set_config_files() options_file unreadable"
 
     [ "$profile_file" ] || profile_file="$config_dir/profile"
     log_debug "set_config_files() profile_file='$profile_file'"
-    [ ! -r "$profile_file" ] && unset profile_file &&
+    [ ! -r "$profile_file" ] && profile_file= &&
         log_debug "set_config_files() profile_file unreadable"
 
     if [ "$image_without_tag" ]; then
@@ -139,17 +139,17 @@ set_config_files() {
 
         per_image_environment_file="$per_image_config_dir/environment"
         log_debug "set_config_files() per_image_environment_file='$per_image_environment_file'"
-        [ ! -r "$per_image_environment_file" ] && unset per_image_environment_file &&
+        [ ! -r "$per_image_environment_file" ] && per_image_environment_file= &&
             log_debug "set_config_files() per_image_environment_file unreadable"
 
         per_image_options_file="$per_image_config_dir/options"
         log_debug "set_config_files() per_image_options_file='$per_image_options_file'"
-        [ ! -r "$per_image_options_file" ] && unset per_image_options_file &&
+        [ ! -r "$per_image_options_file" ] && per_image_options_file= &&
             log_debug "set_config_files() per_image_options_file unreadable"
 
         per_image_profile_file="$per_image_config_dir/profile"
         log_debug "set_config_files() per_image_profile_file='$per_image_profile_file'"
-        [ ! -r "$per_image_profile_file" ] && unset per_image_profile_file &&
+        [ ! -r "$per_image_profile_file" ] && per_image_profile_file= &&
             log_debug "set_config_files() per_image_profile_file unreadable"
     fi
 }
@@ -212,23 +212,23 @@ EOF_ENVIRONMENT_FILE
 # Examples:
 #
 # git, pijul, ssh
-#--volume=$HOME/.gitconfig:$HOME/.gitconfig:z,ro
-#--volume=$HOME/.config/pijul:$HOME/.config/pijul:z,ro
-#--volume=$HOME/.ssh:$HOME/.ssh:z
+#--volume=$HOME/.gitconfig:$HOME/.gitconfig:ro
+#--volume=$HOME/.config/pijul:$HOME/.config/pijul:ro
+#--volume=$HOME/.ssh:$HOME/.ssh:ro
 #
 # aws
-#--volume=$HOME/.aws:$HOME/.aws:z
+#--volume=$HOME/.aws:$HOME/.aws
 #
 # cargo, rustup
-#--volume=$HOME/.cargo:$HOME/.cargo:z
-#--volume=$HOME/.rustup:$HOME/.rustup:z
+#--volume=$HOME/.cargo:$HOME/.cargo
+#--volume=$HOME/.rustup:$HOME/.rustup
 #
 # asdf
-#--volume=$HOME/.asdf:$HOME/.asdf:z
-#--volume=$HOME/.tool-versions:$HOME/.tool-versions:z
+#--volume=$HOME/.asdf:$HOME/.asdf
+#--volume=$HOME/.tool-versions:$HOME/.tool-versions
 #
 # User-specific executable files
-#--volume=$HOME/.local/bin:$HOME/.local/bin:z,ro
+#--volume=$HOME/.local/bin:$HOME/.local/bin:ro
 #
 EOF_OPTIONS_FILE
     }
@@ -288,7 +288,7 @@ EOF_PROFILE_FILE
 write_entrypoint_file() {
     print_entrypoint_file() {
         cat <<"EOF_ENTRYPOINT_FILE"
-#!/bin/sh
+#!/usr/bin/env sh
 # SPDX-License-Identifier: Unlicense
 # entrypoint - contr
 #
@@ -339,9 +339,13 @@ if command -v "$1" >/dev/null; then
     exec "$@"
 else
     log_debug "\$1='$1' non-executable"
+    sh_cmd=$(command -v sh)
+    bash_cmd=$(command -v bash)
     [ -x "$SHELL" ] && log_debug "SHELL=$SHELL executable"
     [ ! -x "$SHELL" ] && log_debug "SHELL=$SHELL non-executable"
+    [ ! -x "$SHELL" ] && [ -x "$bash_cmd" ] && SHELL="$bash_cmd"
     [ ! -x "$SHELL" ] && [ -x /bin/bash ] && SHELL=/bin/bash
+    [ ! -x "$SHELL" ] && [ -x "$sh_cmd" ] && SHELL="$sh_cmd"
     [ ! -x "$SHELL" ] && [ -x /bin/sh ] && SHELL=/bin/sh
     [ ! -x "$SHELL" ] && abort "SHELL=$SHELL not executable. Could not find an executable shell"
     log_debug "SHELL=$SHELL"
@@ -379,27 +383,27 @@ main() {
         case "$1" in
             --pio)
                 log_debug "main() --pio"
-                [ "$per_image_environment_file" ] && unset environment_file
-                [ "$per_image_options_file" ] && unset options_file
-                [ "$per_image_profile_file" ] && unset profile_file
+                [ "$per_image_environment_file" ] && environment_file=
+                [ "$per_image_options_file" ] && options_file=
+                [ "$per_image_profile_file" ] && profile_file=
                 ;;
             --plain)
                 log_debug "main() --plain"
-                unset user_home
-                unset entrypoint_file
-                unset profile_file
-                unset per_image_profile_file
+                user_home=
+                entrypoint_file=
+                profile_file=
+                per_image_profile_file=
                 ;;
             --pure)
                 log_debug "main() --pure"
-                unset user_home
-                unset entrypoint_file
-                unset environment_file
-                unset options_file
-                unset profile_file
-                unset per_image_environment_file
-                unset per_image_options_file
-                unset per_image_profile_file
+                user_home=
+                entrypoint_file=
+                environment_file=
+                options_file=
+                profile_file=
+                per_image_environment_file=
+                per_image_options_file=
+                per_image_profile_file=
                 ;;
             *) break ;;
         esac
@@ -430,26 +434,29 @@ main() {
     fi
 
     [ "$entrypoint_file" ] && write_entrypoint_file "$entrypoint_file"
+    is_tty=
+    [ -t 0 ] && is_tty=1
 
-    podman run -it --rm \
+    podman run -i ${is_tty:+-t} --rm \
         --image-volume=tmpfs \
         --tz=local \
+        --security-opt=label=disable \
         --group-add=keep-groups \
         --user="0:0" \
         --volume="$HOME" \
-        --volume="${PWD}:${PWD}:z" \
+        --volume="${PWD}:${PWD}:rw" \
         --workdir="$PWD" \
         --env=CONTR_DEBUG \
         --env=PS1="[📦 ${image:-contr} \W]\\$ " \
         ${user_home:+"--env=HOME=$user_home"} \
         ${environment_file:+"--env-file=$environment_file"} \
         ${per_image_environment_file:+"--env-file=$per_image_environment_file"} \
-        ${entrypoint_file:+"--volume=${entrypoint_file}:${entrypoint_file}:z,ro"} \
+        ${entrypoint_file:+"--volume=${entrypoint_file}:${entrypoint_file}:ro"} \
         ${entrypoint_file:+"--entrypoint=$entrypoint_file"} \
         ${entrypoint_file:+"--env=CONTR_IMAGE=$image"} \
-        ${profile_file:+"--volume=${profile_file}:${profile_file}:z,ro"} \
+        ${profile_file:+"--volume=${profile_file}:${profile_file}:ro"} \
         ${profile_file:+"--env=CONTR_PROFILE_1=${profile_file}"} \
-        ${per_image_profile_file:+"--volume=${per_image_profile_file}:${per_image_profile_file}:z,ro"} \
+        ${per_image_profile_file:+"--volume=${per_image_profile_file}:${per_image_profile_file}:ro"} \
         ${per_image_profile_file:+"--env=CONTR_PROFILE_2=${per_image_profile_file}"} \
         "$@"
 }

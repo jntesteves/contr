@@ -212,23 +212,23 @@ EOF_ENVIRONMENT_FILE
 # Examples:
 #
 # git, pijul, ssh
-#--volume=$HOME/.gitconfig:$HOME/.gitconfig:z,ro
-#--volume=$HOME/.config/pijul:$HOME/.config/pijul:z,ro
-#--volume=$HOME/.ssh:$HOME/.ssh:z
+#--volume=$HOME/.gitconfig:$HOME/.gitconfig:ro
+#--volume=$HOME/.config/pijul:$HOME/.config/pijul:ro
+#--volume=$HOME/.ssh:$HOME/.ssh:ro
 #
 # aws
-#--volume=$HOME/.aws:$HOME/.aws:z
+#--volume=$HOME/.aws:$HOME/.aws
 #
 # cargo, rustup
-#--volume=$HOME/.cargo:$HOME/.cargo:z
-#--volume=$HOME/.rustup:$HOME/.rustup:z
+#--volume=$HOME/.cargo:$HOME/.cargo
+#--volume=$HOME/.rustup:$HOME/.rustup
 #
 # asdf
-#--volume=$HOME/.asdf:$HOME/.asdf:z
-#--volume=$HOME/.tool-versions:$HOME/.tool-versions:z
+#--volume=$HOME/.asdf:$HOME/.asdf
+#--volume=$HOME/.tool-versions:$HOME/.tool-versions
 #
 # User-specific executable files
-#--volume=$HOME/.local/bin:$HOME/.local/bin:z,ro
+#--volume=$HOME/.local/bin:$HOME/.local/bin:ro
 #
 EOF_OPTIONS_FILE
     }
@@ -378,22 +378,23 @@ main() {
     podman run -i ${is_tty:+-t} --rm \
         --image-volume=tmpfs \
         --tz=local \
+        --security-opt=label=disable \
         --group-add=keep-groups \
         --user="0:0" \
         --volume="$HOME" \
-        --volume="${PWD}:${PWD}:z" \
+        --volume="${PWD}:${PWD}:rw" \
         --workdir="$PWD" \
         --env=CONTR_DEBUG \
         --env=PS1="[📦 ${image:-contr} \W]\\$ " \
         ${user_home:+"--env=HOME=$user_home"} \
         ${environment_file:+"--env-file=$environment_file"} \
         ${per_image_environment_file:+"--env-file=$per_image_environment_file"} \
-        ${entrypoint_file:+"--volume=${entrypoint_file}:${entrypoint_file}:z,ro"} \
+        ${entrypoint_file:+"--volume=${entrypoint_file}:${entrypoint_file}:ro"} \
         ${entrypoint_file:+"--entrypoint=$entrypoint_file"} \
         ${entrypoint_file:+"--env=CONTR_IMAGE=$image"} \
-        ${profile_file:+"--volume=${profile_file}:${profile_file}:z,ro"} \
+        ${profile_file:+"--volume=${profile_file}:${profile_file}:ro"} \
         ${profile_file:+"--env=CONTR_PROFILE_1=${profile_file}"} \
-        ${per_image_profile_file:+"--volume=${per_image_profile_file}:${per_image_profile_file}:z,ro"} \
+        ${per_image_profile_file:+"--volume=${per_image_profile_file}:${per_image_profile_file}:ro"} \
         ${per_image_profile_file:+"--env=CONTR_PROFILE_2=${per_image_profile_file}"} \
         "$@"
 }
