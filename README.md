@@ -40,7 +40,7 @@ Contr depends on Podman and a POSIX-compliant shell with a few core utilities li
 The build process depends on `make`, `git` and a POSIX shell with basic core utilities like `cat`, `chmod`, `date`, `mkdir`, `sed`, `tr`.
 
 ## Building and installing
-A pre-built version is checked-in on the repository, at `target/contr`. It can be easily installed with `make install` or, without make, a simple file copy to a directory in the PATH, for example `cp target/contr ~/.local/bin/`.
+A pre-built version is checked-in on the repository, at `dist/contr`. It can be easily installed with `make install` or, without make, a simple file copy to a directory in the PATH, for example `cp dist/contr ~/.local/bin/`.
 
 We use the directory at `~/.local/bin` by default, as it is defined as a place for user-specific executable files in the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) and should already be included in the PATH environment variable. If this directory is not present in the PATH, you can add it in your `~/.bashrc` (or similar) file. Pasting the following code will do it:
 ```shell
@@ -57,14 +57,14 @@ make && make install
 
 You can install into a different prefix by setting the PREFIX environment variable. For example, to install system-wide:
 ```shell
-sudo PREFIX=/usr/local make install
+sudo make install PREFIX=/usr/local
 ```
 
 To uninstall (also with optional PREFIX):
 ```shell
 make uninstall
 
-sudo PREFIX=/usr/local make uninstall
+sudo make uninstall PREFIX=/usr/local
 ```
 
 ## Contributing

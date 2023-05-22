@@ -1,11 +1,11 @@
-version = 0.1.1-pre
-app_name = contr
-build_dir = target
-app_files = contr.template.sh entrypoint.sh
+version := 0.1.1-pre
+app_name := contr
+build_dir := dist
+app_files := contr.template.sh entrypoint.sh
 ifdef PREFIX
-install_prefix = $(PREFIX)
+install_prefix := $(PREFIX)
 else
-install_prefix = ~/.local
+install_prefix := ~/.local
 endif
 
 $(build_dir): $(app_files)
@@ -13,7 +13,7 @@ $(build_dir): $(app_files)
 
 .PHONY: install
 install:
-	cp $(build_dir)/$(app_name) $(install_prefix)/bin/$(app_name)
+	install -DZ -m 755 -t $(install_prefix)/bin $(build_dir)/$(app_name)
 
 .PHONY: clean
 clean:
