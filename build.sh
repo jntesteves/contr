@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env sh
 # SPDX-License-Identifier: Unlicense
 CMD="$0"
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env sh
 # SPDX-License-Identifier: Unlicense
 VERSION='%%VERSION%%'
 CMD="$(basename "$0")"
@@ -71,7 +71,7 @@ sanitize_for_fs() {
 
 read_arguments() {
     log_debug "read_arguments() \$*=$*"
-    unset image
+    image=
     action='podman-run'
     case "$1" in
         --make-config=*) action='make-config-per-image' && image="${1#'--make-config='}" ;;
@@ -119,17 +119,17 @@ set_config_files() {
 
     [ "$environment_file" ] || environment_file="$config_dir/environment"
     log_debug "set_config_files() environment_file='$environment_file'"
-    [ ! -r "$environment_file" ] && unset environment_file &&
+    [ ! -r "$environment_file" ] && environment_file= &&
         log_debug "set_config_files() environment_file unreadable"
 
     [ "$options_file" ] || options_file="$config_dir/options"
     log_debug "set_config_files() options_file='$options_file'"
-    [ ! -r "$options_file" ] && unset options_file &&
+    [ ! -r "$options_file" ] && options_file= &&
         log_debug "set_config_files() options_file unreadable"
 
     [ "$profile_file" ] || profile_file="$config_dir/profile"
     log_debug "set_config_files() profile_file='$profile_file'"
-    [ ! -r "$profile_file" ] && unset profile_file &&
+    [ ! -r "$profile_file" ] && profile_file= &&
         log_debug "set_config_files() profile_file unreadable"
 
     if [ "$image_without_tag" ]; then
@@ -139,17 +139,17 @@ set_config_files() {
 
         per_image_environment_file="$per_image_config_dir/environment"
         log_debug "set_config_files() per_image_environment_file='$per_image_environment_file'"
-        [ ! -r "$per_image_environment_file" ] && unset per_image_environment_file &&
+        [ ! -r "$per_image_environment_file" ] && per_image_environment_file= &&
             log_debug "set_config_files() per_image_environment_file unreadable"
 
         per_image_options_file="$per_image_config_dir/options"
         log_debug "set_config_files() per_image_options_file='$per_image_options_file'"
-        [ ! -r "$per_image_options_file" ] && unset per_image_options_file &&
+        [ ! -r "$per_image_options_file" ] && per_image_options_file= &&
             log_debug "set_config_files() per_image_options_file unreadable"
 
         per_image_profile_file="$per_image_config_dir/profile"
         log_debug "set_config_files() per_image_profile_file='$per_image_profile_file'"
-        [ ! -r "$per_image_profile_file" ] && unset per_image_profile_file &&
+        [ ! -r "$per_image_profile_file" ] && per_image_profile_file= &&
             log_debug "set_config_files() per_image_profile_file unreadable"
     fi
 }
@@ -321,27 +321,27 @@ main() {
         case "$1" in
             --pio)
                 log_debug "main() --pio"
-                [ "$per_image_environment_file" ] && unset environment_file
-                [ "$per_image_options_file" ] && unset options_file
-                [ "$per_image_profile_file" ] && unset profile_file
+                [ "$per_image_environment_file" ] && environment_file=
+                [ "$per_image_options_file" ] && options_file=
+                [ "$per_image_profile_file" ] && profile_file=
                 ;;
             --plain)
                 log_debug "main() --plain"
-                unset user_home
-                unset entrypoint_file
-                unset profile_file
-                unset per_image_profile_file
+                user_home=
+                entrypoint_file=
+                profile_file=
+                per_image_profile_file=
                 ;;
             --pure)
                 log_debug "main() --pure"
-                unset user_home
-                unset entrypoint_file
-                unset environment_file
-                unset options_file
-                unset profile_file
-                unset per_image_environment_file
-                unset per_image_options_file
-                unset per_image_profile_file
+                user_home=
+                entrypoint_file=
+                environment_file=
+                options_file=
+                profile_file=
+                per_image_environment_file=
+                per_image_options_file=
+                per_image_profile_file=
                 ;;
             *) break ;;
         esac
@@ -372,8 +372,10 @@ main() {
     fi
 
     [ "$entrypoint_file" ] && write_entrypoint_file "$entrypoint_file"
+    is_tty=
+    [ -t 0 ] && is_tty=1
 
-    podman run -it --rm \
+    podman run -i ${is_tty:+-t} --rm \
         --image-volume=tmpfs \
         --tz=local \
         --group-add=keep-groups \

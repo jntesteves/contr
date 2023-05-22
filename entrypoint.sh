@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env sh
 # SPDX-License-Identifier: Unlicense
 # entrypoint - contr
 #
@@ -49,9 +49,13 @@ if command -v "$1" >/dev/null; then
     exec "$@"
 else
     log_debug "\$1='$1' non-executable"
+    sh_cmd=$(command -v sh)
+    bash_cmd=$(command -v bash)
     [ -x "$SHELL" ] && log_debug "SHELL=$SHELL executable"
     [ ! -x "$SHELL" ] && log_debug "SHELL=$SHELL non-executable"
+    [ ! -x "$SHELL" ] && [ -x "$bash_cmd" ] && SHELL="$bash_cmd"
     [ ! -x "$SHELL" ] && [ -x /bin/bash ] && SHELL=/bin/bash
+    [ ! -x "$SHELL" ] && [ -x "$sh_cmd" ] && SHELL="$sh_cmd"
     [ ! -x "$SHELL" ] && [ -x /bin/sh ] && SHELL=/bin/sh
     [ ! -x "$SHELL" ] && abort "SHELL=$SHELL not executable. Could not find an executable shell"
     log_debug "SHELL=$SHELL"
