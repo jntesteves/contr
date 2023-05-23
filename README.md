@@ -1,11 +1,12 @@
 # contr
 
-contr is a tool to create ad-hoc containers with limited access to the host system. By default, containers can only access the current working directory. Access to any other filesystem path must be given explicitly. Network access is blocked by default.
+contr is a tool to create ad-hoc containers with limited access to the host system. By default, contr containers can only access the current working directory. Access to any other filesystem path must be given explicitly. Network access is blocked by default.
 
 Under the hood, contr uses [Podman](https://podman.io/) to do the heavy lifting, and all options to [podman-run](https://docs.podman.io/en/latest/markdown/podman-run.1.html) are accepted.
 
 Example uses:
-* You cloned a git repository you want to build, but you don't want `make` and other of build scripts to have full access to your computer (even when not malicious, build scripts frequently have bugs. A `make clean` script accidentally erasing data elsewhere is very common). You can use contr to run the build inside a container.
+* You cloned the git repository of a program you want to build, but you don't want `make` and other build scripts to have full access to your computer (even when not malicious, build scripts frequently have bugs. A `make clean` script accidentally erasing data elsewhere is a common issue). You can use contr to run the build inside a container.
+  * contr itself is built inside a container like this!
 * You want to run a program without installing it. Many programs offer a container option, but these containers are usually made by people with little experience with Linux containers, with long, convoluted and insecure instructions on how to use.
   * Take av1an's [docker instructions](https://github.com/master-of-zen/Av1an/blob/master/docs/DOCKER.md) for example. Running the same container under contr is not only safer, but also much simpler: `contr masterofzen/av1an:master av1an --help`  
   Alternatively, you can enter the container with `contr masterofzen/av1an:master`, and then run any commands inside it: `av1an --help`
