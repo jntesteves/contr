@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # SPDX-License-Identifier: Unlicense
-VERSION='0.1.1-pre+dirty (8f520ca 2023-05-23)'
+VERSION='0.1.1-pre+dirty (90de6ad 2023-05-23)'
 CMD="$(basename "$0")"
 PWD=$(pwd)
 config_dir="$CONTR_CONFIG_DIR"
@@ -457,7 +457,7 @@ main() {
         --volume="${PWD}:${PWD}:rw" \
         --workdir="$PWD" \
         --env=CONTR_DEBUG \
-        --env=PS1="[📦 ${image:-contr} \W]\\$ " \
+        ${is_tty:+"--env=PS1=[📦 ${image:-contr} \W]\\$ "} \
         ${block_network:+"--network=none"} \
         ${user_home:+"--env=HOME=$user_home"} \
         ${environment_file:+"--env-file=$environment_file"} \
