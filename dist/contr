@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # SPDX-License-Identifier: Unlicense
-VERSION='0.1.1-pre+dirty (90de6ad 2023-05-23)'
+VERSION='0.2.0'
 CMD="$(basename "$0")"
 PWD=$(pwd)
 config_dir="$CONTR_CONFIG_DIR"
