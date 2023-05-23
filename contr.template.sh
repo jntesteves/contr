@@ -22,9 +22,10 @@ Usage: $CMD [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
 
 Options:
   --make-config[=IMAGE]  Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
+  -n                     Allow network access
   --pio                  Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
   --plain                Do not override the image's entrypoint script
-  --pure                 Ignore all configuration files and the entrypoint
+  --pure                 Ignore all configuration files and custom entrypoint
   --help                 Print this help text and exit
   --help-all             Print this help text with all options to podman-run included and exit
 
@@ -40,9 +41,9 @@ Environment variables:
 
 Examples:
   $CMD alpine
-  $CMD --pure node:alpine sh
+  $CMD -n node:alpine
   $CMD --make-config=amazon/aws-cli
-  $CMD --plain amazon/aws-cli --version
+  $CMD -n --plain amazon/aws-cli --version
 EOF
     exit
 }
@@ -71,11 +72,13 @@ sanitize_for_fs() {
 
 read_arguments() {
     log_debug "read_arguments() \$*=$*"
+    block_network=1
     image=
     action='podman-run'
     case "$1" in
         --make-config=*) action='make-config-per-image' && image="${1#'--make-config='}" ;;
         --make-config) action='make-config' ;;
+        -n | --net | --net=* | --network | --network=*) block_network= ;;
         --help | -h) print_help_text ;;
         --help-all) print_help_text all ;;
     esac
@@ -325,6 +328,7 @@ main() {
     # Read options from command line
     while :; do
         case "$1" in
+            -n) ;;
             --pio)
                 log_debug "main() --pio"
                 [ "$per_image_environment_file" ] && environment_file=
@@ -392,6 +396,7 @@ main() {
         --workdir="$PWD" \
         --env=CONTR_DEBUG \
         --env=PS1="[📦 ${image:-contr} \W]\\$ " \
+        ${block_network:+"--network=none"} \
         ${user_home:+"--env=HOME=$user_home"} \
         ${environment_file:+"--env-file=$environment_file"} \
         ${per_image_environment_file:+"--env-file=$per_image_environment_file"} \

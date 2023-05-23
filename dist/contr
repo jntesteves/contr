@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # SPDX-License-Identifier: Unlicense
-VERSION='0.1.1-pre+dirty (d95f2ea 2023-05-22)'
+VERSION='0.1.1-pre+dirty (8f520ca 2023-05-23)'
 CMD="$(basename "$0")"
 PWD=$(pwd)
 config_dir="$CONTR_CONFIG_DIR"
@@ -12,7 +12,7 @@ is_debug="$CONTR_DEBUG"
 
 print_help_text() {
     [ "$1" = "all" ] && podman_options="$(podman run --help | grep -E '^\s+--|^\s+-\w, --' -)"
-    [ "$podman_options" ] || podman_options="  -*                     Any option for the 'podman run' command. Run '$CMD --help-all' for a full list of options"
+    [ "$podman_options" ] || podman_options="  -*                     Any option for the podman-run command. Run '$CMD --help-all' for a full list of options"
 
     cat <<EOF
 contr $VERSION
@@ -22,11 +22,12 @@ Usage: $CMD [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
 
 Options:
   --make-config[=IMAGE]  Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
+  -n                     Allow network access
   --pio                  Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
   --plain                Do not override the image's entrypoint script
-  --pure                 Ignore all configuration files and the entrypoint
+  --pure                 Ignore all configuration files and custom entrypoint
   --help                 Print this help text and exit
-  --help-all             Print this help text with all options to "podman run" included and exit
+  --help-all             Print this help text with all options to podman-run included and exit
 
 Podman options:
 $podman_options
@@ -40,9 +41,9 @@ Environment variables:
 
 Examples:
   $CMD alpine
-  $CMD --pure node:alpine sh
+  $CMD -n node:alpine
   $CMD --make-config=amazon/aws-cli
-  $CMD --plain amazon/aws-cli --version
+  $CMD -n --plain amazon/aws-cli --version
 EOF
     exit
 }
@@ -71,11 +72,13 @@ sanitize_for_fs() {
 
 read_arguments() {
     log_debug "read_arguments() \$*=$*"
+    block_network=1
     image=
     action='podman-run'
     case "$1" in
         --make-config=*) action='make-config-per-image' && image="${1#'--make-config='}" ;;
         --make-config) action='make-config' ;;
+        -n | --net | --net=* | --network | --network=*) block_network= ;;
         --help | -h) print_help_text ;;
         --help-all) print_help_text all ;;
     esac
@@ -84,7 +87,7 @@ read_arguments() {
         for arg in "$@"; do
             case "$arg" in
                 -*) ;;
-                *) image="$arg" && break ;;
+                *) printf '%s' "$arg" | grep -Eq '^\w' && image="$arg" && break ;;
             esac
         done
         [ "$image" ] || abort "An image must be provided. Run $CMD --help"
@@ -314,10 +317,10 @@ abort() {
 [ ! -f /run/.containerenv ] && [ ! -f /.dockerenv ] &&
     abort "It seems we are not in a container. $SCRIPT_NAME is meant to run inside a container."
 
-export PS1="[📦 ${CONTR_IMAGE:-contr} \W]\\$ "
+[ -t 0 ] && export PS1="[📦 ${CONTR_IMAGE:-contr} \W]\\$ "
 # Substitute PS1= with __PS1= in these files so our value is not overwritten
 # Needed for Debian- and Ubuntu-based images
-[ -w /etc/bash.bashrc ] && sed -Ei '/^\s*PS1=/s/PS1=/__&/' /etc/bash.bashrc /etc/profile /root/.bashrc /root/.profile
+[ -w /etc/bash.bashrc ] && sed -Ei '/^\s*PS1=/s/PS1=/__&/' /etc/bash.bashrc /etc/profile /root/.bashrc /root/.profile 2>/dev/null
 
 # Link to files in /root from HOME
 for file in /root/.* /root/*; do
@@ -387,6 +390,7 @@ main() {
     # Read options from command line
     while :; do
         case "$1" in
+            -n) ;;
             --pio)
                 log_debug "main() --pio"
                 [ "$per_image_environment_file" ] && environment_file=
@@ -454,6 +458,7 @@ main() {
         --workdir="$PWD" \
         --env=CONTR_DEBUG \
         --env=PS1="[📦 ${image:-contr} \W]\\$ " \
+        ${block_network:+"--network=none"} \
         ${user_home:+"--env=HOME=$user_home"} \
         ${environment_file:+"--env-file=$environment_file"} \
         ${per_image_environment_file:+"--env-file=$per_image_environment_file"} \

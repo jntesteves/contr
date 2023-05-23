@@ -1,14 +1,14 @@
 # contr
 
-contr is a tool to create ad-hoc containers with limited access to the host system. By default, containers can only access the current working directory. Access to any other filesystem path must be given explicitly. Network access is allowed by default but can optionally be limited or disabled `--net=none`.
+contr is a tool to create ad-hoc containers with limited access to the host system. By default, containers can only access the current working directory. Access to any other filesystem path must be given explicitly. Network access is blocked by default.
 
 Under the hood, contr uses [Podman](https://podman.io/) to do the heavy lifting, and all options to [podman-run](https://docs.podman.io/en/latest/markdown/podman-run.1.html) are accepted.
 
 Example uses:
 * You cloned a git repository you want to build, but you don't want `make` and other of build scripts to have full access to your computer (even when not malicious, build scripts frequently have bugs. A `make clean` script accidentally erasing data elsewhere is very common). You can use contr to run the build inside a container.
 * You want to run a program without installing it. Many programs offer a container option, but these containers are usually made by people with little experience with Linux containers, with long, convoluted and insecure instructions on how to use.
-  * Take av1an's [docker instructions](https://github.com/master-of-zen/Av1an/blob/master/docs/DOCKER.md) for example. Running the same container under contr is not only safer, but also much simpler: `contr --net=none masterofzen/av1an:master av1an --help`  
-  Alternatively, you can enter the container with `contr --net=none masterofzen/av1an:master`, and then run any commands inside it: `av1an --help`
+  * Take av1an's [docker instructions](https://github.com/master-of-zen/Av1an/blob/master/docs/DOCKER.md) for example. Running the same container under contr is not only safer, but also much simpler: `contr masterofzen/av1an:master av1an --help`  
+  Alternatively, you can enter the container with `contr masterofzen/av1an:master`, and then run any commands inside it: `av1an --help`
 
 ## Usage
 ```
@@ -19,9 +19,10 @@ Usage: contr [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
 
 Options:
   --make-config[=IMAGE]  Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
+  -n                     Allow network access
   --pio                  Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
   --plain                Do not override the image's entrypoint script
-  --pure                 Ignore all configuration files and the entrypoint
+  --pure                 Ignore all configuration files and custom entrypoint
   --help                 Print this help text and exit
   --help-all             Print this help text with all options to podman-run included and exit
 
@@ -37,9 +38,9 @@ Environment variables:
 
 Examples:
   contr alpine
-  contr --pure node:alpine sh
+  contr -n node:alpine
   contr --make-config=amazon/aws-cli
-  contr --plain amazon/aws-cli --version
+  contr -n --plain amazon/aws-cli --version
 ```
 
 ## Dependencies
