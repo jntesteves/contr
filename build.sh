@@ -3,6 +3,9 @@
 CMD="$0"
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 SCRIPT_NAME="$(basename "$(realpath "$0")")"
+app_name=
+build_dir=
+version=
 
 print_help_text() {
     cat <<EOF
@@ -56,6 +59,8 @@ read_arguments() {
     [ "$build_dir" ] || abort "Missing BUILD_DIR argument. Run $CMD --help"
     [ "$version" ] || abort "Missing VERSION argument. Run $CMD --help"
 
+    version_is_pre_release=
+    printf '%s' "$version" | grep -Eq '[^0-9.]' && version_is_pre_release=1
     app_template_file="${SCRIPT_DIR}/${app_name}.template.sh"
     entrypoint_file="${SCRIPT_DIR}/entrypoint.sh"
     build_path="${SCRIPT_DIR}/$build_dir"
@@ -84,6 +89,7 @@ read_git_state() {
 }
 
 check_dependencies() {
+    missing=
     for _dep in "$@"; do
         if ! command -v "$_dep" >/dev/null; then
             log_error "$_dep is not installed"
@@ -119,7 +125,7 @@ strip_single_quotes() {
 render_template() {
     _template_file="$1"
     _version="$2"
-    _version="${_version}${git_tree_is_dirty:+'+dirty'} $git_last_commit_info"
+    _version="${_version}${git_tree_is_dirty:+'+dirty'}${version_is_pre_release:+ $git_last_commit_info}"
     _version="$(sed_replacement_escape "$(strip_single_quotes "$_version")")"
     log_debug "render_template() escaped _version=$_version"
     _entrypoint_text="$(cat "$3")"
