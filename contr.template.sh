@@ -95,6 +95,7 @@ read_arguments() {
 }
 
 check_dependencies() {
+    missing=
     for dep in "$@"; do
         if ! command -v "$dep" >/dev/null; then
             log_error "$dep is not installed"
@@ -131,6 +132,11 @@ set_config_files() {
     log_debug "set_config_files() profile_file='$profile_file'"
     [ ! -r "$profile_file" ] && profile_file= &&
         log_debug "set_config_files() profile_file unreadable"
+
+    per_image_config_dir=
+    per_image_environment_file=
+    per_image_options_file=
+    per_image_profile_file=
 
     if [ "$image_without_tag" ]; then
         per_image_config_dirname="$(sanitize_for_fs "$image_without_tag")"
