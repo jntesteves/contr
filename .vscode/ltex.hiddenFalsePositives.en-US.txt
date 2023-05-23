@@ -1,1 +1,1 @@
-{"rule":"UPPERCASE_SENTENCE_START","sentence":"^\\Qcontr\\E$"}
+{"rule":"UPPERCASE_SENTENCE_START","sentence":"^\\Qcontr"}

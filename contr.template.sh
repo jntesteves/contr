@@ -12,7 +12,7 @@ is_debug="$CONTR_DEBUG"
 
 print_help_text() {
     [ "$1" = "all" ] && podman_options="$(podman run --help | grep -E '^\s+--|^\s+-\w, --' -)"
-    [ "$podman_options" ] || podman_options="  -*                     Any option for the 'podman run' command. Run '$CMD --help-all' for a full list of options"
+    [ "$podman_options" ] || podman_options="  -*                     Any option for the podman-run command. Run '$CMD --help-all' for a full list of options"
 
     cat <<EOF
 contr $VERSION
@@ -26,7 +26,7 @@ Options:
   --plain                Do not override the image's entrypoint script
   --pure                 Ignore all configuration files and the entrypoint
   --help                 Print this help text and exit
-  --help-all             Print this help text with all options to "podman run" included and exit
+  --help-all             Print this help text with all options to podman-run included and exit
 
 Podman options:
 $podman_options
@@ -84,7 +84,7 @@ read_arguments() {
         for arg in "$@"; do
             case "$arg" in
                 -*) ;;
-                *) image="$arg" && break ;;
+                *) printf '%s' "$arg" | grep -Eq '^\w' && image="$arg" && break ;;
             esac
         done
         [ "$image" ] || abort "An image must be provided. Run $CMD --help"

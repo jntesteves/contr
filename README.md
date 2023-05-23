@@ -1,6 +1,14 @@
 # contr
 
-Run container exposing the current working directory
+contr is a tool to create ad-hoc containers with limited access to the host system. By default, containers can only access the current working directory. Access to any other filesystem path must be given explicitly. Network access is allowed by default but can optionally be limited or disabled `--net=none`.
+
+Under the hood, contr uses [Podman](https://podman.io/) to do the heavy lifting, and all options to [podman-run](https://docs.podman.io/en/latest/markdown/podman-run.1.html) are accepted.
+
+Example uses:
+* You cloned a git repository you want to build, but you don't want `make` and other of build scripts to have full access to your computer (even when not malicious, build scripts frequently have bugs. A `make clean` script accidentally erasing data elsewhere is very common). You can use contr to run the build inside a container.
+* You want to run a program without installing it. Many programs offer a container option, but these containers are usually made by people with little experience with Linux containers, with long, convoluted and insecure instructions on how to use.
+  * Take av1an's [docker instructions](https://github.com/master-of-zen/Av1an/blob/master/docs/DOCKER.md) for example. Running the same container under contr is not only safer, but also much simpler: `contr --net=none masterofzen/av1an:master av1an --help`  
+  Alternatively, you can enter the container with `contr --net=none masterofzen/av1an:master`, and then run any commands inside it: `av1an --help`
 
 ## Usage
 ```
@@ -15,10 +23,10 @@ Options:
   --plain                Do not override the image's entrypoint script
   --pure                 Ignore all configuration files and the entrypoint
   --help                 Print this help text and exit
-  --help-all             Print this help text with all options to "podman run" included and exit
+  --help-all             Print this help text with all options to podman-run included and exit
 
 Podman options:
-  -*                     Any option for the 'podman run' command. Run 'contr --help-all' for a full list of options
+  -*                     Any option for the podman-run command. Run 'contr --help-all' for a full list of options
 
 Environment variables:
   CONTR_CONFIG_DIR        Configuration directory. Defaults to $XDG_CONFIG_HOME/contr or ~/.config/contr
