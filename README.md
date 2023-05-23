@@ -12,7 +12,7 @@ Example uses:
 
 ## Usage
 ```
-contr 0.1.1-pre
+contr 0.2.0
 Run container exposing the current working directory
 
 Usage: contr [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
@@ -44,9 +44,9 @@ Examples:
 ```
 
 ## Dependencies
-Contr depends on Podman and a POSIX-compliant shell with a few core utilities like `cat`, `chmod`, `grep`, `mkdir`, `tr` for operation.
+contr depends on Podman and a POSIX-compliant shell with a few core utilities like `cat`, `chmod`, `grep`, `mkdir`, `tr` for operation.
 
-The build process depends on `make`, `git` and a POSIX shell with basic core utilities like `cat`, `chmod`, `date`, `mkdir`, `sed`, `tr`.
+The build process depends on `make`, `git` and a POSIX shell with basic core utilities like `cat`, `chmod`, `grep`, `date`, `mkdir`, `sed`, `tr`.
 
 ## Building and installing
 A pre-built version is checked-in on the repository, at `dist/contr`. It can be easily installed with `make install` or, without make, a simple file copy to a directory in the PATH, for example `cp dist/contr ~/.local/bin/`.
@@ -94,21 +94,6 @@ make
 ```
 
 Every change must pass lint and formatting validation with `make lint`. As an option, formatting can be automatically applied with `make format`.
-
-## To do
-* ~~Security: restore SELinux labels of bind mounted volumes. Something like running `restorecon -rF /path/to/mounted/dir` after the container is destroyed.~~ See
-[danwalsh](https://opensource.com/article/18/2/selinux-labels-container-runtimes),
-[distroguy](https://blog.christophersmart.com/2021/01/31/podman-volumes-and-selinux/),
-[neoX](https://ahelpme.com/software/podman/change-the-location-of-container-storage-in-podman-with-selinux-enabled/),
-[mutai-josphat](https://computingforgeeks.com/set-selinux-context-label-for-podman-graphroot-directory/),
-[fed500](https://fedoramagazine.org/mlcube-and-podman/),
-[udica](https://github.com/containers/udica),
-[container-selinux-customization](https://github.com/fedora-selinux/container-selinux-customization)
-* Feature: add support for OCI Hooks. This could help the previous item by running a command on a `poststop` hook. It can also improve other parts of contr, like detecting image name on a `prestart` hook (or podman's exclusive `precreate`). Check
-[Podman source](https://github.com/containers/podman/tree/main/pkg/hooks),
-[Podman docs](https://docs.podman.io/en/latest/markdown/podman.1.html#hooks-dir-path),
-[Xin Cheng](https://faun.pub/podman-rootless-container-networking-1cb5a1973b4b)
-* Feature: support using docker (and possibly also others?) in addition to podman for running containers
 
 ## License
 This is free and unencumbered software released into the public domain.
