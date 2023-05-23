@@ -15,10 +15,6 @@ $(build_dir): $(app_files)
 install:
 	install -DZ -m 755 -t $(install_prefix)/bin $(build_dir)/$(app_name)
 
-.PHONY: clean
-clean:
-	-rm -rf $(build_dir)/
-
 .PHONY: uninstall
 uninstall:
 	rm -f $(install_prefix)/bin/$(app_name)
@@ -31,3 +27,7 @@ lint:
 .PHONY: format
 format:
 	shfmt -p -i 4 -ci -w *.sh
+
+.PHONY: develop-image
+develop-image:
+	podman build -f Containerfile.develop -t contr-develop
