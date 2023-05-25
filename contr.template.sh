@@ -75,23 +75,31 @@ read_arguments() {
     block_network=1
     image=
     action='podman-run'
+    podman_options="$(podman --help | grep -E '^\s+--|^\s+-\w, --' -)"
     podman_run_options="$(podman run --help | grep -E '^\s+--|^\s+-\w, --' -)"
 
-    # From the podman options, filter only those that take arguments
-    podman_options_take_arg="$(podman --help |
-        grep -Ei -e '^\s+--\w[-a-z0-9]+ [-a-z0-9<:>[]+' -e '^\s+-\w, --\w[-a-z0-9]+ [-a-z0-9<:>[]+' - |
-        sed -E -e 's/^\s+(--\w[-a-z0-9]+).*/\1/i; s/^\s+(-\w), (--\w[-a-z0-9]+).*/\1\n\2/i')"
+    # From the podman option flags, filter only those that take arguments
+    print_podman_options_take_arg() {
+        printf '%s\n%s' "$podman_options" "$podman_run_options" |
+            grep -Ei '^\s+-\w, --\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while read -r line; do
+            printf '%s\n' "${line%%,*}"
+            flag=${line#*[[:space:]]}
+            flag=${flag%%[[:space:]]*}
+            printf '%s\n' "$flag"
+        done
 
-    # From the podman-run options, filter only those that take arguments
-    podman_run_options_take_arg="$(printf '%s' "$podman_run_options" |
-        grep -Ei -e '^\s+--\w[-a-z0-9]+ [-a-z0-9<:>[]+' -e '^\s+-\w, --\w[-a-z0-9]+ [-a-z0-9<:>[]+' - |
-        sed -E -e 's/^\s+(--\w[-a-z0-9]+).*/\1/i; s/^\s+(-\w), (--\w[-a-z0-9]+).*/\1\n\2/i')"
+        printf '%s\n%s' "$podman_options" "$podman_run_options" |
+            grep -Ei '^\s+--\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while read -r line; do
+            printf '%s\n' "${line%%[[:space:]]*}"
+        done
+    }
+
+    podman_options_take_arg="$(print_podman_options_take_arg)"
 
     is_podman_option() {
         is_podman_option_result=
         if [ "$1" ]; then
-            for podman_option in --net \
-                $podman_options_take_arg $podman_run_options_take_arg; do
+            for podman_option in --net $podman_options_take_arg; do
                 [ "$podman_option" = "$1" ] && is_podman_option_result=1 && break
             done
         fi

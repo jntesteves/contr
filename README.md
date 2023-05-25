@@ -45,7 +45,7 @@ Examples:
 ```
 
 ## Dependencies
-contr depends on Podman and a POSIX-compliant shell with a few core utilities like `cat`, `chmod`, `grep`, `mkdir`, `sed`, `tr` for operation.
+contr depends on Podman and a POSIX-compliant shell with a few core utilities like `cat`, `chmod`, `grep`, `mkdir`, `tr` for operation.
 
 The build process depends on `make`, `git` and a POSIX shell with basic core utilities like `cat`, `chmod`, `grep`, `date`, `mkdir`, `sed`, `tr`.
 
@@ -55,8 +55,8 @@ A pre-built version is checked-in on the repository, at `dist/contr`. It can be 
 We use the directory at `~/.local/bin` by default, as it is defined as a place for user-specific executable files in the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) and should already be included in the PATH environment variable. If this directory is not present in the PATH, you can add it in your `~/.bashrc` (or similar) file. Pasting the following code will do it:
 ```shell
 case ":${PATH}:" in
-    *:"$HOME/.local/bin":*) ;;
-    *) PATH="$HOME/.local/bin:$PATH" ;;
+    *:"${HOME}/.local/bin":*) ;;
+    *) PATH="${HOME}/.local/bin:${PATH}" ;;
 esac
 ```
 
