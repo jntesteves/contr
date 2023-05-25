@@ -13,10 +13,11 @@ Example uses:
 
 ## Usage
 ```
-contr 0.2.0
+contr 0.2.1
 Run container exposing the current working directory
 
 Usage: contr [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
+       contr --make-config[=IMAGE]
 
 Options:
   --make-config[=IMAGE]  Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
@@ -56,7 +57,7 @@ We use the directory at `~/.local/bin` by default, as it is defined as a place f
 ```shell
 case ":${PATH}:" in
     *:"${HOME}/.local/bin":*) ;;
-    *) PATH="${HOME}/.local/bin:${PATH}" ;;
+    *) export PATH="${HOME}/.local/bin:${PATH}" ;;
 esac
 ```
 
