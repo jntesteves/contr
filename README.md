@@ -45,7 +45,7 @@ Examples:
 ```
 
 ## Dependencies
-contr depends on Podman and a POSIX-compliant shell with a few core utilities like `cat`, `chmod`, `grep`, `mkdir`, `tr` for operation.
+contr depends on Podman and a POSIX-compliant shell with a few core utilities like `cat`, `chmod`, `grep`, `mkdir`, `sed`, `tr` for operation.
 
 The build process depends on `make`, `git` and a POSIX shell with basic core utilities like `cat`, `chmod`, `grep`, `date`, `mkdir`, `sed`, `tr`.
 

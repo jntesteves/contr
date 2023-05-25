@@ -11,14 +11,14 @@ profile_file="$CONTR_PROFILE_FILE"
 is_debug="$CONTR_DEBUG"
 
 print_help_text() {
-    [ "$1" = "all" ] && podman_options="$(podman run --help | grep -E '^\s+--|^\s+-\w, --' -)"
-    [ "$podman_options" ] || podman_options="  -*                     Any option for the podman-run command. Run '$CMD --help-all' for a full list of options"
+    podman_options=${1:-"  -*                     Any option for the podman-run command. Run '$CMD --help-all' for a full list of options"}
 
     cat <<EOF
 contr $VERSION
 Run container exposing the current working directory
 
 Usage: $CMD [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
+       $CMD --make-config[=IMAGE]
 
 Options:
   --make-config[=IMAGE]  Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
@@ -56,12 +56,12 @@ abort() {
     exit 1
 }
 
-# Remove tag from a container image's name
+# Remove tag from a container image's name/URI
 remove_tag() {
-    if [ "$(printf '%s' "$1" | grep -E -c -m 1 ':[^/]+$')" = 0 ]; then
-        printf '%s' "$1"
-    else
+    if printf '%s' "$1" | grep -Eq ':[^/]+$' -; then
         printf '%s' "${1%:*}"
+    else
+        printf '%s' "$1"
     fi
 }
 
@@ -75,26 +75,58 @@ read_arguments() {
     block_network=1
     image=
     action='podman-run'
+    podman_run_options="$(podman run --help | grep -E '^\s+--|^\s+-\w, --' -)"
+
+    # From the podman options, filter only those that take arguments
+    podman_options_take_arg="$(podman --help |
+        grep -Ei -e '^\s+--\w[-a-z0-9]+ [-a-z0-9<:>[]+' -e '^\s+-\w, --\w[-a-z0-9]+ [-a-z0-9<:>[]+' - |
+        sed -E -e 's/^\s+(--\w[-a-z0-9]+).*/\1/i; s/^\s+(-\w), (--\w[-a-z0-9]+).*/\1\n\2/i')"
+
+    # From the podman-run options, filter only those that take arguments
+    podman_run_options_take_arg="$(printf '%s' "$podman_run_options" |
+        grep -Ei -e '^\s+--\w[-a-z0-9]+ [-a-z0-9<:>[]+' -e '^\s+-\w, --\w[-a-z0-9]+ [-a-z0-9<:>[]+' - |
+        sed -E -e 's/^\s+(--\w[-a-z0-9]+).*/\1/i; s/^\s+(-\w), (--\w[-a-z0-9]+).*/\1\n\2/i')"
+
+    is_podman_option() {
+        is_podman_option_result=
+        if [ "$1" ]; then
+            for podman_option in --net \
+                $podman_options_take_arg $podman_run_options_take_arg; do
+                [ "$podman_option" = "$1" ] && is_podman_option_result=1 && break
+            done
+        fi
+        printf '%s' "$is_podman_option_result"
+    }
+
     case "$1" in
         --make-config=*) action='make-config-per-image' && image="${1#'--make-config='}" ;;
         --make-config) action='make-config' ;;
-        -n | --net | --net=* | --network | --network=*) block_network= ;;
         --help | -h) print_help_text ;;
-        --help-all) print_help_text all ;;
+        --help-all) print_help_text "$podman_run_options" ;;
     esac
 
     if [ "$action" = 'podman-run' ]; then
+        last_flag=
         for arg in "$@"; do
             case "$arg" in
-                -*) ;;
-                *) printf '%s' "$arg" | grep -Eq '^\w' && image="$arg" && break ;;
+                -n | --net | --net=* | --network | --network=*) block_network= ;;
+            esac
+            case "$arg" in
+                -*) last_flag="$arg" ;;
+                *)
+                    if [ "$(is_podman_option "$last_flag")" ]; then
+                        last_flag=
+                    else
+                        image="$arg" && break
+                    fi
+                    ;;
             esac
         done
         [ "$image" ] || abort "An image must be provided. Run $CMD --help"
     fi
 
-    image_without_tag="$(remove_tag "$image")"
-    log_debug "read_arguments() image='$image' image_without_tag='$image_without_tag'"
+    image_name="$(remove_tag "$image")"
+    log_debug "read_arguments() image='$image' image_name='$image_name'"
 }
 
 check_dependencies() {
@@ -141,8 +173,8 @@ set_config_files() {
     per_image_options_file=
     per_image_profile_file=
 
-    if [ "$image_without_tag" ]; then
-        per_image_config_dirname="$(sanitize_for_fs "$image_without_tag")"
+    if [ "$image_name" ]; then
+        per_image_config_dirname="$(sanitize_for_fs "$image_name")"
         per_image_config_dir="$config_dir/per-image/$per_image_config_dirname"
         log_debug "set_config_files() per_image_config_dir='$per_image_config_dir'"
 
