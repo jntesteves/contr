@@ -224,15 +224,6 @@ write_config_files() {
 #AWS_ACCESS_KEY_ID=<access_key>
 #AWS_SECRET_ACCESS_KEY=<secret_key>
 #
-# cargo, rustup
-#RUSTUP_HOME=$HOME/.rustup
-#CARGO_HOME=$HOME/.cargo
-#
-# asdf
-#ASDF_CONFIG_FILE=$HOME/.asdfrc
-#ASDF_DIR=$HOME/.asdf
-#ASDF_DATA_DIR=$HOME/.asdf
-#
 # git
 #GIT_DIFF_OPTS=--unified=5
 #GIT_MERGE_VERBOSITY=2
@@ -242,6 +233,9 @@ write_config_files() {
 #EDITOR
 #LANG
 #VISUAL
+#
+# Uncomment the following line if you don't like systemctl's auto-paging feature:
+#SYSTEMD_PAGER=
 #
 EOF_ENVIRONMENT_FILE
     }
@@ -261,23 +255,15 @@ EOF_ENVIRONMENT_FILE
 # Examples:
 #
 # git, pijul, ssh
-#--volume=$HOME/.gitconfig:$HOME/.gitconfig:ro
-#--volume=$HOME/.config/pijul:$HOME/.config/pijul:ro
-#--volume=$HOME/.ssh:$HOME/.ssh:ro
+#--volume=${HOME}/.gitconfig:${HOME}/.gitconfig:ro
+#--volume=${HOME}/.config/pijul:${HOME}/.config/pijul:ro
+#--volume=${HOME}/.ssh:${HOME}/.ssh:ro
 #
 # aws
-#--volume=$HOME/.aws:$HOME/.aws
-#
-# cargo, rustup
-#--volume=$HOME/.cargo:$HOME/.cargo
-#--volume=$HOME/.rustup:$HOME/.rustup
-#
-# asdf
-#--volume=$HOME/.asdf:$HOME/.asdf
-#--volume=$HOME/.tool-versions:$HOME/.tool-versions
+#--volume=${HOME}/.aws:${HOME}/.aws
 #
 # User-specific executable files
-#--volume=$HOME/.local/bin:$HOME/.local/bin:ro
+#--volume=${HOME}/.local/bin:${HOME}/.local/bin:ro
 #
 EOF_OPTIONS_FILE
     }
@@ -288,23 +274,22 @@ EOF_OPTIONS_FILE
 # User-specific environment for containers
 #
 # This file is sourced (. command) by the entrypoint shell-script inside the
-# container. This means everything defined here may get exported by default, so
-# remember to unset any variables and functions you don't want exported.
+# container. Use it to do any complex initialization you may require for a
+# container, that can't be done with the simpler environment file.
 #
 # Mind that the shell executing this script may be more limited than usual, like
 # busybox/ash on Alpine-based images, for example.
 #
+# This file is ignored when contr is run with either the --plain or
+# --pure flags
+#
 # Examples:
 #
-# cargo
-#export PATH="${CARGO_HOME:-"$HOME/.cargo"}/bin:$PATH"
-#
-# asdf
-#export PATH="${ASDF_DATA_DIR:-"$HOME/.asdf"}/shims:$PATH"
-#export PATH="${ASDF_DATA_DIR:-"$HOME/.asdf"}/bin:$PATH"
-#
 # User-specific executable files
-#export PATH="$HOME/.local/bin:$PATH"
+#case ":${PATH}:" in
+#    *:"${HOME}/.local/bin":*) ;;
+#    *) export PATH="${HOME}/.local/bin:${PATH}" ;;
+#esac
 #
 EOF_PROFILE_FILE
     }
