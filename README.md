@@ -13,7 +13,7 @@ Example uses:
 
 ## Usage
 ```
-contr 0.2.1
+contr 0.2.2
 Run container exposing the current working directory
 
 Usage: contr [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
