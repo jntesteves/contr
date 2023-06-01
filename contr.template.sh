@@ -411,7 +411,7 @@ main() {
     is_tty=
     [ -t 0 ] && is_tty=1
 
-    podman run -i ${is_tty:+-t} --rm \
+    exec podman run -i ${is_tty:+-t} --rm \
         --image-volume=tmpfs \
         --tz=local \
         --security-opt=label=disable \
