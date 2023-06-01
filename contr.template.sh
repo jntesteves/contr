@@ -11,14 +11,16 @@ profile_file="$CONTR_PROFILE_FILE"
 is_debug="$CONTR_DEBUG"
 
 print_help_text() {
-    podman_options=${1:-"  -*                     Any option for the podman-run command. Run '$CMD --help-all' for a full list of options"}
+    podman_options=${1-"  -*                     Any option for the podman-run command. Run '$CMD --help-all' for a full list of options"}
+    podman_options=${podman_options:-'  Failed to get Podman options, check if Podman is installed correctly'}
 
     cat <<EOF
 contr $VERSION
 Run container exposing the current working directory
 
-Usage: $CMD [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
-       $CMD --make-config[=IMAGE]
+Usage:
+  $CMD [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
+  $CMD --make-config[=IMAGE]
 
 Options:
   --make-config[=IMAGE]  Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
@@ -75,36 +77,8 @@ read_arguments() {
     block_network=1
     image=
     action='podman-run'
-    podman_options="$(podman --help | grep -E '^\s+--|^\s+-\w, --' -)"
-    podman_run_options="$(podman run --help | grep -E '^\s+--|^\s+-\w, --' -)"
-
-    # From the podman option flags, filter only those that take arguments
-    print_podman_options_take_arg() {
-        printf '%s\n%s' "$podman_options" "$podman_run_options" |
-            grep -Ei '^\s+-\w, --\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while read -r line; do
-            printf '%s\n' "${line%%,*}"
-            flag=${line#*[[:space:]]}
-            flag=${flag%%[[:space:]]*}
-            printf '%s\n' "$flag"
-        done
-
-        printf '%s\n%s' "$podman_options" "$podman_run_options" |
-            grep -Ei '^\s+--\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while read -r line; do
-            printf '%s\n' "${line%%[[:space:]]*}"
-        done
-    }
-
-    podman_options_take_arg="$(print_podman_options_take_arg)"
-
-    is_podman_option() {
-        is_podman_option_result=
-        if [ "$1" ]; then
-            for podman_option in --net $podman_options_take_arg; do
-                [ "$podman_option" = "$1" ] && is_podman_option_result=1 && break
-            done
-        fi
-        printf '%s' "$is_podman_option_result"
-    }
+    podman_options="$(podman --help 2>/dev/null | grep -E '^\s+--|^\s+-\w, --' -)"
+    podman_run_options="$(podman run --help 2>/dev/null | grep -E '^\s+--|^\s+-\w, --' -)"
 
     case "$1" in
         --make-config=*) action='make-config-per-image' && image="${1#'--make-config='}" ;;
@@ -114,6 +88,33 @@ read_arguments() {
     esac
 
     if [ "$action" = 'podman-run' ]; then
+        # From the podman option flags, filter only those that take arguments
+        print_podman_options_take_arg() {
+            printf '%s\n%s' "$podman_options" "$podman_run_options" |
+                grep -Ei '^\s+-\w, --\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while read -r line; do
+                printf '%s\n' "${line%%,*}"
+                flag=${line#*[[:space:]]}
+                flag=${flag%%[[:space:]]*}
+                printf '%s\n' "$flag"
+            done
+
+            printf '%s\n%s' "$podman_options" "$podman_run_options" |
+                grep -Ei '^\s+--\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while read -r line; do
+                printf '%s\n' "${line%%[[:space:]]*}"
+            done
+        }
+
+        podman_options_take_arg="$(print_podman_options_take_arg)"
+
+        is_podman_option() (
+            if [ "$1" ]; then
+                for podman_option in --net $podman_options_take_arg; do
+                    [ "$podman_option" = "$1" ] && exit
+                done
+            fi
+            exit 1
+        )
+
         last_flag=
         for arg in "$@"; do
             case "$arg" in
@@ -122,7 +123,7 @@ read_arguments() {
             case "$arg" in
                 -*) last_flag="$arg" ;;
                 *)
-                    if [ "$(is_podman_option "$last_flag")" ]; then
+                    if is_podman_option "$last_flag"; then
                         last_flag=
                     else
                         image="$arg" && break

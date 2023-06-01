@@ -25,9 +25,13 @@ abort() {
 
 # Link to files in /root from HOME
 for file in /root/.* /root/*; do
-    [ "$file" != "/root/." ] && [ "$file" != "/root/.." ] && [ "$file" != "/root/*" ] &&
-        ln -s "$file" "$HOME" &&
-        log_debug "ln file=$file"
+    case "$file" in
+        '/root/.' | '/root/..' | '/root/*') ;;
+        *)
+            log_debug "ln -s $file $HOME"
+            ln -s "$file" "$HOME"
+            ;;
+    esac
 done
 
 # If HOME is in /var/home or similar, add a link to it in /home
