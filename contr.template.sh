@@ -412,7 +412,6 @@ main() {
     [ -t 0 ] && is_tty=1
 
     exec podman run -i ${is_tty:+-t} --rm \
-        --image-volume=tmpfs \
         --tz=local \
         --security-opt=label=disable \
         --group-add=keep-groups \
