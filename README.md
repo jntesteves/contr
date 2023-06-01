@@ -48,7 +48,7 @@ Examples:
 ## Dependencies
 contr depends on Podman and a POSIX-compliant shell with a few core utilities like `cat`, `chmod`, `grep`, `mkdir`, `tr` for operation.
 
-The build process depends on `make`, `git` and a POSIX shell with basic core utilities like `cat`, `chmod`, `grep`, `date`, `mkdir`, `sed`, `tr`.
+The build process depends on `make`, `git` and a POSIX shell with basic core utilities like `cat`, `chmod`, `date`, `mkdir`, `sed`, `tr`.
 
 ## Building and installing
 A pre-built version is checked-in on the repository, at `dist/contr`. It can be easily installed with `make install` or, without make, a simple file copy to a directory in the PATH, for example `cp dist/contr ~/.local/bin/`.

@@ -3,6 +3,9 @@
 CMD="$0"
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 SCRIPT_NAME="$(basename "$(realpath "$0")")"
+is_verbose=${BUILD_DEBUG:+1}
+[ "$BUILD_DEBUG" ] && [ ! "${BUILD_DEBUG##*trace*}" ] && is_vv=1
+[ "$BUILD_DEBUG" ] && [ ! "${BUILD_DEBUG##*dry-run*}" ] && is_dry_run=1
 app_name=
 build_dir=
 version=
@@ -22,11 +25,11 @@ EOF
     exit
 }
 
-log_error() { printf '%s\n' "$(date -I'seconds') ERROR $*" >&2; }
-log_warn() { printf '%s\n' "$(date -I'seconds') WARN $*" >&2; }
-log_info() { printf '%s\n' "$(date -I'seconds') INFO $*"; }
-log_debug() { [ "$is_verbose" ] && printf '%s\n' "$(date -I'seconds') DEBUG $*"; }
-log_trace() { [ "$is_vv" ] && printf '%s\n' "$(date -I'seconds') TRACE $*"; }
+log_error() { printf '%s ERROR %s\n' "$(date -I'seconds')" "$*" >&2; }
+log_warn() { printf '%s WARN %s\n' "$(date -I'seconds')" "$*" >&2; }
+log_info() { printf '%s INFO %s\n' "$(date -I'seconds')" "$*"; }
+log_debug() { [ "$is_verbose" ] && printf '%s DEBUG %s\n' "$(date -I'seconds')" "$*"; }
+log_trace() { [ "$is_vv" ] && printf '%s TRACE %s\n' "$(date -I'seconds')" "$*"; }
 abort() {
     log_error "$*"
     exit 1
@@ -60,7 +63,8 @@ read_arguments() {
     [ "$version" ] || abort "Missing VERSION argument. Run $CMD --help"
 
     version_is_pre_release=
-    printf '%s' "$version" | grep -Eq '[^0-9.]' && version_is_pre_release=1
+    # If version has any character that is not a . or a digit, it is a pre-release version
+    [ "${version##*[!.0-9]*}" ] || version_is_pre_release=1
     app_template_file="${SCRIPT_DIR}/${app_name}.template.sh"
     entrypoint_file="${SCRIPT_DIR}/entrypoint.sh"
     build_path="${SCRIPT_DIR}/$build_dir"
@@ -72,6 +76,7 @@ read_arguments() {
     log_debug "app_name=$app_name"
     log_debug "build_dir=$build_dir"
     log_debug "version=$version"
+    log_debug "version_is_pre_release=$version_is_pre_release"
     log_debug "app_template_file=$app_template_file"
     log_debug "entrypoint_file=$entrypoint_file"
     log_debug "build_path=$build_path"
@@ -102,26 +107,27 @@ check_dependencies() {
     fi
 }
 
-check_dependencies cat chmod date git mkdir sed tr
-read_arguments "$@"
-read_git_state
-
-# Escapes text for use as replacement string in sed's 's' command
+# Escape text for use as replacement string in sed's 's' command
 sed_replacement_escape() {
     printf '%s' "$*" | sed -E 's/[\\|/&]/\\&/g' | sed -E '$!s/$/\\n/' | tr -d '\n'
 }
 
-# Escapes text for literal use in a shell script unquoted here-doc
+# Escape text for literal use in a shell script unquoted here-doc
 # shell_script_escape() {
 #     printf '%s' "$*" | sed -E 's/[\\$`]/\\&/g'
 # }
 
-# Strips single quotes from text for use in a shell script single-quoted string
+# Escape text for use in a shell script single-quoted string
+# escape_single_quotes() {
+#     printf '%s' "$*" | sed -E "s/'/'\\\\''/g"
+# }
+
+# Strip single quotes from text for use in a shell script single-quoted string
 strip_single_quotes() {
     printf '%s' "$*" | tr -d "'"
 }
 
-# Renders a template from a file with simple string substitution
+# Render a template from a file with simple string substitution
 render_template() {
     _template_file="$1"
     _version="$2"
@@ -139,16 +145,24 @@ render_template() {
     render_template_result="$_result"
 }
 
-log_info "Rendering template from $app_template_file with version=$version to file $target_file"
-render_template "$app_template_file" "$version" "$entrypoint_file"
+main() {
+    check_dependencies cat chmod date git mkdir sed tr
+    read_arguments "$@"
+    read_git_state
 
-log_trace "CMD: printf '%s\n' \"${render_template_result}\" > \"$target_file\""
-if [ "$is_dry_run" ]; then
-    log_info "DRY-RUN CMD: mkdir -p \"$build_path\""
-    log_info "DRY-RUN CMD: printf '%s' \"\$render_template_result\" > \"$target_file\""
-    log_info "DRY-RUN CMD: chmod +x \"$target_file\""
-else
-    mkdir -p "$build_path" || abort "Failed to create build dir at $build_path"
-    printf '%s\n' "$render_template_result" >"$target_file" || abort "Failed to write file $target_file"
-    chmod +x "$target_file" || abort "Failed to chmod file $target_file"
-fi
+    log_info "Rendering template from $app_template_file with version=$version to file $target_file"
+    render_template "$app_template_file" "$version" "$entrypoint_file"
+
+    log_trace "CMD: printf '%s\n' \"${render_template_result}\" >\"$target_file\""
+    if [ "$is_dry_run" ]; then
+        log_info "DRY-RUN CMD: mkdir -p \"$build_path\""
+        log_info "DRY-RUN CMD: printf '%s' \"\$render_template_result\" >\"$target_file\""
+        log_info "DRY-RUN CMD: chmod +x \"$target_file\""
+    else
+        mkdir -p "$build_path" || abort "Failed to create build dir at $build_path"
+        printf '%s\n' "$render_template_result" >"$target_file" || abort "Failed to write file $target_file"
+        chmod +x "$target_file" || abort "Failed to chmod file $target_file"
+    fi
+}
+
+main "$@"
