@@ -421,7 +421,7 @@ main() {
         --volume="${PWD}:${PWD}:rw" \
         --workdir="$PWD" \
         --env=CONTR_DEBUG \
-        ${is_tty:+"--env=PS1=[📦 ${image:-contr} \W]\\$ "} \
+        ${is_tty:+"--env=PS1=\n\[\e[1;36m\]\w\[\e[m\] inside \[\e[1;35m\]⬢ ${image:-contr}\[\e[m\]\n\[\e[1;90m\]❯\[\e[m\] "} \
         ${block_network:+"--network=none"} \
         ${user_home:+"--env=HOME=$user_home"} \
         ${environment_file:+"--env-file=$environment_file"} \
