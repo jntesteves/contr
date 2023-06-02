@@ -43,9 +43,9 @@ Environment variables:
 
 Examples:
   $CMD alpine
-  $CMD -n node:alpine
+  $CMD -n node:alpine sh
   $CMD --make-config=amazon/aws-cli
-  $CMD -n --plain amazon/aws-cli --version
+  $CMD -n amazon/aws-cli aws --version
 EOF
     exit
 }
@@ -261,7 +261,7 @@ EOF_ENVIRONMENT_FILE
 #--volume=${HOME}/.ssh:${HOME}/.ssh:ro
 #
 # aws
-#--volume=${HOME}/.aws:${HOME}/.aws
+#--volume=aws:${HOME}/.aws
 #
 # User-specific executable files
 #--volume=${HOME}/.local/bin:${HOME}/.local/bin:ro

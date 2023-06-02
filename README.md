@@ -46,14 +46,26 @@ Examples:
 ```
 
 ## Dependencies
-contr depends on Podman and a POSIX-compliant shell with a few core utilities like `cat`, `chmod`, `grep`, `mkdir`, `tr` for operation.
+contr depends on Podman and a POSIX-compliant shell with core utilities for operation.
 
-The build process depends on `make`, `git` and a POSIX shell with basic core utilities like `cat`, `chmod`, `date`, `mkdir`, `sed`, `tr`.
+## Installing
+Download or clone this repository with git. A pre-built version is checked-in on the repository, at `dist/contr`. It can be easily installed with `make install` or, without make, a simple file copy to a directory in the PATH, for example `cp dist/contr ~/.local/bin/`.
 
-## Building and installing
-A pre-built version is checked-in on the repository, at `dist/contr`. It can be easily installed with `make install` or, without make, a simple file copy to a directory in the PATH, for example `cp dist/contr ~/.local/bin/`.
+```shell
+# To install into default PREFIX (~/.local)
+make install
 
-We use the directory at `~/.local/bin` by default, as it is defined as a place for user-specific executable files in the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) and should already be included in the PATH environment variable. If this directory is not present in the PATH, you can add it in your `~/.bashrc` (or similar) file. Pasting the following code will do it:
+# To uninstall from default PREFIX
+make uninstall
+
+# You can install into a different prefix by setting the PREFIX parameter
+sudo make install PREFIX=/usr/local
+
+# To uninstall from system PREFIX
+sudo make uninstall PREFIX=/usr/local
+```
+
+We use the directory at `~/.local/bin` by default, as it is defined as a place for user-specific executable files in the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) and should already be included in the PATH environment variable. If this directory is not present in the PATH, you can add it in your `~/.bashrc` (or similar) file. The following code does that:
 ```shell
 case ":${PATH}:" in
     *:"${HOME}/.local/bin":*) ;;
@@ -61,27 +73,10 @@ case ":${PATH}:" in
 esac
 ```
 
-To build and install into default PREFIX (`~/.local`):
-```shell
-make && make install
-```
-
-You can install into a different prefix by setting the PREFIX environment variable. For example, to install system-wide:
-```shell
-sudo make install PREFIX=/usr/local
-```
-
-To uninstall (also with optional PREFIX):
-```shell
-make uninstall
-
-sudo make uninstall PREFIX=/usr/local
-```
-
 ## Contributing
 To develop contr we only depend on Podman and contr itself. We have a development container image with all the tools required to build and validate the project.
 
-```
+```shell
 # Build the development image
 podman build -f Containerfile.develop -t contr-develop
 
