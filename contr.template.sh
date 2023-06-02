@@ -117,6 +117,7 @@ read_arguments() {
             exit 1
         )
 
+        i=1
         last_flag=
         for arg in "$@"; do
             case "$arg" in
@@ -128,10 +129,13 @@ read_arguments() {
                     if is_podman_option "$last_flag"; then
                         last_flag=
                     else
-                        image="$arg" && break
+                        image_arg_pos="$i"
+                        image="$arg"
+                        break
                     fi
                     ;;
             esac
+            i=$((i + 1))
         done
         [ "$image" ] || abort "An image must be provided. Run $CMD --help"
     fi
@@ -361,7 +365,7 @@ main() {
     fi
 
     # From here on we assume the default action = 'podman-run'
-    check_dependencies cat chmod grep mkdir mktemp podman tr
+    check_dependencies cat chmod grep mkdir podman tr
     [ "$HOME" = "$PWD" ] && abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
 
     # Read options from command line
@@ -394,7 +398,8 @@ main() {
                 ;;
             *) break ;;
         esac
-        shift # Remove option from arguments list
+        shift                                # Remove option from arguments list
+        image_arg_pos=$((image_arg_pos - 1)) # Decrement image position in arguments list
     done
     log_debug "main() \$*=$*"
 
@@ -402,8 +407,11 @@ main() {
     if [ "$options_file" ]; then
         while IFS= read -r line; do
             case "$line" in
-                \#*) ;;                    # Ignore comments
-                -*) set -- "$line" "$@" ;; # Add option to arguments list
+                \#*) ;; # Ignore comments
+                -*)
+                    set -- "$line" "$@"                  # Add option to arguments list
+                    image_arg_pos=$((image_arg_pos + 1)) # Increment image position in arguments list
+                    ;;
             esac
         done <"$options_file"
         log_debug "main() \$*=$*"
@@ -413,8 +421,11 @@ main() {
     if [ "$per_image_options_file" ]; then
         while IFS= read -r line; do
             case "$line" in
-                \#*) ;;                    # Ignore comments
-                -*) set -- "$line" "$@" ;; # Add option to arguments list
+                \#*) ;; # Ignore comments
+                -*)
+                    set -- "$line" "$@"                  # Add option to arguments list
+                    image_arg_pos=$((image_arg_pos + 1)) # Increment image position in arguments list
+                    ;;
             esac
         done <"$per_image_options_file"
         log_debug "main() \$*=$*"
@@ -439,37 +450,34 @@ main() {
     }
 
     # Change all volume arguments to include option noexec by default, unless exec is explicitly set
-    mkdir -p "$runtime_cache_dir"
-    args_cache_file=$(mktemp -p "$runtime_cache_dir")
-    log_debug "main() args_cache_file=$args_cache_file"
-    for arg in "$@"; do
-        printf '%s\n' "$arg" >>"$args_cache_file"
-    done
-    log_debug "$(date -I'ns')"
+    log_debug "main() image_arg_pos=$image_arg_pos"
     argc="$#"
-    set --
-    i=0
-    next_is_volume=
-    while IFS= read -r line; do
-        i=$((i + 1))
-        log_debug "${i}: $line"
-        if [ "$next_is_volume" ]; then
-            next_is_volume=
-            line=$(make_volume_noexec "$line")
-        else
-            case "$line" in
+    i=1
+    while [ "$i" -le "$argc" ]; do
+        opt="$1"
+        shifts=1
+        opt_arg=
+        if [ "$i" -lt "$image_arg_pos" ]; then
+            log_debug "${i}: $opt"
+            case "$opt" in
                 --volume=*)
-                    line=$(make_volume_noexec "$line")
+                    opt=$(make_volume_noexec "$opt")
+                    log_debug "${i}: $opt"
                     ;;
-                -v | --volume) next_is_volume=1 ;;
+                -v | --volume)
+                    shifts=2
+                    opt_arg=$(make_volume_noexec "$2")
+                    opt_arg_pos=$((i + 1))
+                    log_debug "${opt_arg_pos}: $2"
+                    log_debug "${opt_arg_pos}: $opt_arg"
+                    ;;
             esac
         fi
-        log_debug "${i}: $line"
-        set -- "$@" "$line" # Add option to arguments list
-    done <"$args_cache_file"
-    log_debug "$(date -I'ns')"
+        set -- "$@" "$opt" ${opt_arg:+"$opt_arg"} # Add argument(s) to the end of arguments list
+        shift "$shifts"                           # Remove argument(s) from the beginning of arguments list
+        i=$((i + shifts))
+    done
     log_debug "main() \$*=$*"
-    rm -f "$args_cache_file"
     [ "$argc" = "$#" ] || abort "Error processing volume arguments. We should to have $argc arguments but got $# instead"
 
     [ "$entrypoint_file" ] && write_entrypoint_file "$entrypoint_file"
