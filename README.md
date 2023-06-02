@@ -1,6 +1,6 @@
 # contr
 
-contr is a tool to create ad-hoc containers with limited access to the host system. By default, contr containers can only access the current working directory. Access to any other filesystem path must be given explicitly. Network access is blocked by default.
+contr is a tool to create ad-hoc containers with limited access to the host system. By default, contr containers can only access the current working directory. Access to any other filesystem path must be given explicitly. Network access is blocked by default. Volumes are `noexec` by default, you have to explicitly add the `:exec` option to allow code execution from within volumes.
 
 Under the hood, contr uses [Podman](https://podman.io/) to do the heavy lifting, and all options to [podman-run](https://docs.podman.io/en/latest/markdown/podman-run.1.html) are accepted.
 

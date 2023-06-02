@@ -3,6 +3,8 @@
 VERSION='%%VERSION%%'
 CMD="$(basename "$0")"
 PWD=$(pwd)
+USER_ID=$(id -u)
+[ -d "/run/user/$USER_ID" ] && [ -w "/run/user/$USER_ID" ] && XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$USER_ID}"
 config_dir="$CONTR_CONFIG_DIR"
 state_dir="$CONTR_STATE_DIR"
 environment_file="$CONTR_ENVIRONMENT_FILE"
@@ -177,6 +179,10 @@ set_config_files() {
     [ ! -r "$profile_file" ] && profile_file= &&
         log_debug "set_config_files() profile_file unreadable"
 
+    runtime_dir="${XDG_RUNTIME_DIR:-/tmp}/contr"
+    runtime_cache_dir="${runtime_dir}/cache"
+    log_debug "set_config_files() runtime_cache_dir='$runtime_cache_dir'"
+
     per_image_config_dir=
     per_image_environment_file=
     per_image_options_file=
@@ -264,7 +270,7 @@ EOF_ENVIRONMENT_FILE
 #--volume=aws:${HOME}/.aws
 #
 # User-specific executable files
-#--volume=${HOME}/.local/bin:${HOME}/.local/bin:ro
+#--volume=${HOME}/.local/bin:${HOME}/.local/bin:ro,exec
 #
 EOF_OPTIONS_FILE
     }
@@ -355,7 +361,7 @@ main() {
     fi
 
     # From here on we assume the default action = 'podman-run'
-    check_dependencies cat chmod grep mkdir podman tr
+    check_dependencies cat chmod grep mkdir mktemp podman tr
     [ "$HOME" = "$PWD" ] && abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
 
     # Read options from command line
@@ -414,6 +420,58 @@ main() {
         log_debug "main() \$*=$*"
     fi
 
+    # Add noexec option to a volume definition unless an exec mode is explicitly set
+    make_volume_noexec() {
+        # If there are no colons we do nothing as this is an anonymous volume, which
+        # does not accept options, and in our case (podman-run --rm) is transient anyway
+        [ "${1##*:*}" ] && printf '%s' "$1" && exit
+        volume_opts="${1##*:}"
+        has_opts="${volume_opts##*/*}"
+        if [ "$has_opts" ]; then
+            if [ "${volume_opts##*exec*}" ]; then
+                printf '%s' "${1},noexec"
+            else
+                printf '%s' "$1"
+            fi
+        else
+            printf '%s' "${1}:noexec"
+        fi
+    }
+
+    # Change all volume arguments to include option noexec by default, unless exec is explicitly set
+    mkdir -p "$runtime_cache_dir"
+    args_cache_file=$(mktemp -p "$runtime_cache_dir")
+    log_debug "main() args_cache_file=$args_cache_file"
+    for arg in "$@"; do
+        printf '%s\n' "$arg" >>"$args_cache_file"
+    done
+    log_debug "$(date -I'ns')"
+    argc="$#"
+    set --
+    i=0
+    next_is_volume=
+    while IFS= read -r line; do
+        i=$((i + 1))
+        log_debug "${i}: $line"
+        if [ "$next_is_volume" ]; then
+            next_is_volume=
+            line=$(make_volume_noexec "$line")
+        else
+            case "$line" in
+                --volume=*)
+                    line=$(make_volume_noexec "$line")
+                    ;;
+                -v | --volume) next_is_volume=1 ;;
+            esac
+        fi
+        log_debug "${i}: $line"
+        set -- "$@" "$line" # Add option to arguments list
+    done <"$args_cache_file"
+    log_debug "$(date -I'ns')"
+    log_debug "main() \$*=$*"
+    rm -f "$args_cache_file"
+    [ "$argc" = "$#" ] || abort "Error processing volume arguments. We should to have $argc arguments but got $# instead"
+
     [ "$entrypoint_file" ] && write_entrypoint_file "$entrypoint_file"
     is_tty=
     [ -t 0 ] && is_tty=1
@@ -424,7 +482,7 @@ main() {
         --group-add=keep-groups \
         --user="0:0" \
         --volume="$HOME" \
-        --volume="${PWD}:${PWD}:rw" \
+        --volume="${PWD}:${PWD}:rw,exec" \
         --workdir="$PWD" \
         --env=CONTR_DEBUG \
         ${is_tty:+"--env=PS1=\n\[\e[1;36m\]\w\[\e[m\] inside \[\e[1;35m\]⬢ ${image:-contr}\[\e[m\]\n\[\e[1;90m\]❯\[\e[m\] "} \
@@ -432,12 +490,12 @@ main() {
         ${user_home:+"--env=HOME=$user_home"} \
         ${environment_file:+"--env-file=$environment_file"} \
         ${per_image_environment_file:+"--env-file=$per_image_environment_file"} \
-        ${entrypoint_file:+"--volume=${entrypoint_file}:${entrypoint_file}:ro"} \
+        ${entrypoint_file:+"--volume=${entrypoint_file}:${entrypoint_file}:ro,exec"} \
         ${entrypoint_file:+"--entrypoint=$entrypoint_file"} \
         ${entrypoint_file:+"--env=CONTR_IMAGE=$image"} \
-        ${profile_file:+"--volume=${profile_file}:${profile_file}:ro"} \
+        ${profile_file:+"--volume=${profile_file}:${profile_file}:ro,noexec"} \
         ${profile_file:+"--env=CONTR_PROFILE_1=${profile_file}"} \
-        ${per_image_profile_file:+"--volume=${per_image_profile_file}:${per_image_profile_file}:ro"} \
+        ${per_image_profile_file:+"--volume=${per_image_profile_file}:${per_image_profile_file}:ro,noexec"} \
         ${per_image_profile_file:+"--env=CONTR_PROFILE_2=${per_image_profile_file}"} \
         "$@"
 }
