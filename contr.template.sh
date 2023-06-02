@@ -279,7 +279,8 @@ EOF_OPTIONS_FILE
 # container, that can't be done with the simpler environment file.
 #
 # Mind that the shell executing this script may be more limited than usual, like
-# busybox/ash on Alpine-based images, for example.
+# busybox/ash on Alpine-based images. Therefore, try to only use POSIX-shell
+# syntax and avoid any bash-isms.
 #
 # This file is ignored when contr is run with either the --plain or
 # --pure flags
@@ -291,6 +292,12 @@ EOF_OPTIONS_FILE
 #    *:"${HOME}/.local/bin":*) ;;
 #    *) export PATH="${HOME}/.local/bin:${PATH}" ;;
 #esac
+#
+# User-specific aliases and functions
+#alias grep='grep --color=auto'
+#alias l.='ls -d .* --color=auto'
+#alias ll='ls -l --color=auto'
+#alias ls='ls --color=auto'
 #
 EOF_PROFILE_FILE
     }

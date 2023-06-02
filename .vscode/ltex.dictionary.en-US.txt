@@ -2,10 +2,12 @@ asdfrc
 containerenv
 Containerfile
 contr
+cshrc
 dockerenv
 esac
 filesystem
 ifdef
+kshrc
 ltex
 mkdir
 pijul

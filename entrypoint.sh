@@ -42,10 +42,28 @@ case "$HOME" in
         ;;
 esac
 
-# shellcheck source=/dev/null
-[ -f "$CONTR_PROFILE_1" ] && . "$CONTR_PROFILE_1" && log_debug "sourced CONTR_PROFILE_1=$CONTR_PROFILE_1"
-# shellcheck source=/dev/null
-[ -f "$CONTR_PROFILE_2" ] && . "$CONTR_PROFILE_2" && log_debug "sourced CONTR_PROFILE_2=$CONTR_PROFILE_2"
+[ "$CONTR_DEBUG" ] || _dbg='#'
+export ENV="$HOME"/.profile
+
+write_profile_files() {
+    for p in .bashrc .cshrc .kshrc .profile .zshrc; do
+        printf "\\n%s printf '~/%s sourcing %s=%s\\\\n'\\n. '%s'\\n" "$_dbg" "$p" "$1" "$2" "$2" >>"${HOME}/$p"
+    done
+}
+
+if [ -f "$CONTR_PROFILE_1" ]; then
+    write_profile_files CONTR_PROFILE_1 "$CONTR_PROFILE_1"
+    log_debug "sourcing CONTR_PROFILE_1=$CONTR_PROFILE_1"
+    # shellcheck source=/dev/null
+    . "$CONTR_PROFILE_1"
+fi
+
+if [ -f "$CONTR_PROFILE_2" ]; then
+    write_profile_files CONTR_PROFILE_2 "$CONTR_PROFILE_2"
+    log_debug "sourcing CONTR_PROFILE_2=$CONTR_PROFILE_2"
+    # shellcheck source=/dev/null
+    . "$CONTR_PROFILE_2"
+fi
 
 log_debug "\$*=$*"
 if command -v "$1" >/dev/null; then
