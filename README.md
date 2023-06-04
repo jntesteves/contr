@@ -13,11 +13,12 @@ Example uses:
 
 ## Usage
 ```
-contr 0.2.2
+contr 0.3.0
 Run container exposing the current working directory
 
-Usage: contr [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
-       contr --make-config[=IMAGE]
+Usage:
+  contr [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
+  contr --make-config[=IMAGE]
 
 Options:
   --make-config[=IMAGE]  Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
@@ -40,9 +41,9 @@ Environment variables:
 
 Examples:
   contr alpine
-  contr -n node:alpine
+  contr -n node:alpine sh
   contr --make-config=amazon/aws-cli
-  contr -n --plain amazon/aws-cli --version
+  contr -n amazon/aws-cli aws --version
 ```
 
 ## Dependencies

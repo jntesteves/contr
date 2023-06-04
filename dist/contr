@@ -1,8 +1,10 @@
 #!/usr/bin/env sh
 # SPDX-License-Identifier: Unlicense
-VERSION='0.2.2'
+VERSION='0.3.0'
 CMD="$(basename "$0")"
 PWD=$(pwd)
+USER_ID=$(id -u)
+[ -d "/run/user/$USER_ID" ] && [ -w "/run/user/$USER_ID" ] && XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$USER_ID}"
 config_dir="$CONTR_CONFIG_DIR"
 state_dir="$CONTR_STATE_DIR"
 environment_file="$CONTR_ENVIRONMENT_FILE"
@@ -11,14 +13,16 @@ profile_file="$CONTR_PROFILE_FILE"
 is_debug="$CONTR_DEBUG"
 
 print_help_text() {
-    podman_options=${1:-"  -*                     Any option for the podman-run command. Run '$CMD --help-all' for a full list of options"}
+    podman_options=${1-"  -*                     Any option for the podman-run command. Run '$CMD --help-all' for a full list of options"}
+    podman_options=${podman_options:-'  Failed to get Podman options, check if Podman is installed correctly'}
 
     cat <<EOF
 contr $VERSION
 Run container exposing the current working directory
 
-Usage: $CMD [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
-       $CMD --make-config[=IMAGE]
+Usage:
+  $CMD [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
+  $CMD --make-config[=IMAGE]
 
 Options:
   --make-config[=IMAGE]  Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
@@ -41,9 +45,9 @@ Environment variables:
 
 Examples:
   $CMD alpine
-  $CMD -n node:alpine
+  $CMD -n node:alpine sh
   $CMD --make-config=amazon/aws-cli
-  $CMD -n --plain amazon/aws-cli --version
+  $CMD -n amazon/aws-cli aws --version
 EOF
     exit
 }
@@ -75,36 +79,8 @@ read_arguments() {
     block_network=1
     image=
     action='podman-run'
-    podman_options="$(podman --help | grep -E '^\s+--|^\s+-\w, --' -)"
-    podman_run_options="$(podman run --help | grep -E '^\s+--|^\s+-\w, --' -)"
-
-    # From the podman option flags, filter only those that take arguments
-    print_podman_options_take_arg() {
-        printf '%s\n%s' "$podman_options" "$podman_run_options" |
-            grep -Ei '^\s+-\w, --\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while read -r line; do
-            printf '%s\n' "${line%%,*}"
-            flag=${line#*[[:space:]]}
-            flag=${flag%%[[:space:]]*}
-            printf '%s\n' "$flag"
-        done
-
-        printf '%s\n%s' "$podman_options" "$podman_run_options" |
-            grep -Ei '^\s+--\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while read -r line; do
-            printf '%s\n' "${line%%[[:space:]]*}"
-        done
-    }
-
-    podman_options_take_arg="$(print_podman_options_take_arg)"
-
-    is_podman_option() {
-        is_podman_option_result=
-        if [ "$1" ]; then
-            for podman_option in --net $podman_options_take_arg; do
-                [ "$podman_option" = "$1" ] && is_podman_option_result=1 && break
-            done
-        fi
-        printf '%s' "$is_podman_option_result"
-    }
+    podman_options="$(podman --help 2>/dev/null | grep -E '^\s+--|^\s+-\w, --' -)"
+    podman_run_options="$(podman run --help 2>/dev/null | grep -E '^\s+--|^\s+-\w, --' -)"
 
     case "$1" in
         --make-config=*) action='make-config-per-image' && image="${1#'--make-config='}" ;;
@@ -114,6 +90,34 @@ read_arguments() {
     esac
 
     if [ "$action" = 'podman-run' ]; then
+        # From the podman option flags, filter only those that take arguments
+        print_podman_options_take_arg() {
+            printf '%s\n%s' "$podman_options" "$podman_run_options" |
+                grep -Ei '^\s+-\w, --\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while read -r line; do
+                printf '%s\n' "${line%%,*}"
+                flag=${line#*[[:space:]]}
+                flag=${flag%%[[:space:]]*}
+                printf '%s\n' "$flag"
+            done
+
+            printf '%s\n%s' "$podman_options" "$podman_run_options" |
+                grep -Ei '^\s+--\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while read -r line; do
+                printf '%s\n' "${line%%[[:space:]]*}"
+            done
+        }
+
+        podman_options_take_arg="$(print_podman_options_take_arg)"
+
+        is_podman_option() (
+            if [ "$1" ]; then
+                for podman_option in --net $podman_options_take_arg; do
+                    [ "$podman_option" = "$1" ] && exit
+                done
+            fi
+            exit 1
+        )
+
+        i=1
         last_flag=
         for arg in "$@"; do
             case "$arg" in
@@ -122,13 +126,16 @@ read_arguments() {
             case "$arg" in
                 -*) last_flag="$arg" ;;
                 *)
-                    if [ "$(is_podman_option "$last_flag")" ]; then
+                    if is_podman_option "$last_flag"; then
                         last_flag=
                     else
-                        image="$arg" && break
+                        image_arg_pos="$i"
+                        image="$arg"
+                        break
                     fi
                     ;;
             esac
+            i=$((i + 1))
         done
         [ "$image" ] || abort "An image must be provided. Run $CMD --help"
     fi
@@ -175,6 +182,10 @@ set_config_files() {
     log_debug "set_config_files() profile_file='$profile_file'"
     [ ! -r "$profile_file" ] && profile_file= &&
         log_debug "set_config_files() profile_file unreadable"
+
+    runtime_dir="${XDG_RUNTIME_DIR:-/tmp}/contr"
+    runtime_cache_dir="${runtime_dir}/cache"
+    log_debug "set_config_files() runtime_cache_dir='$runtime_cache_dir'"
 
     per_image_config_dir=
     per_image_environment_file=
@@ -260,10 +271,10 @@ EOF_ENVIRONMENT_FILE
 #--volume=${HOME}/.ssh:${HOME}/.ssh:ro
 #
 # aws
-#--volume=${HOME}/.aws:${HOME}/.aws
+#--volume=aws:${HOME}/.aws
 #
 # User-specific executable files
-#--volume=${HOME}/.local/bin:${HOME}/.local/bin:ro
+#--volume=${HOME}/.local/bin:${HOME}/.local/bin:ro,exec
 #
 EOF_OPTIONS_FILE
     }
@@ -278,7 +289,8 @@ EOF_OPTIONS_FILE
 # container, that can't be done with the simpler environment file.
 #
 # Mind that the shell executing this script may be more limited than usual, like
-# busybox/ash on Alpine-based images, for example.
+# busybox/ash on Alpine-based images. Therefore, try to only use POSIX-shell
+# syntax and avoid any bash-isms.
 #
 # This file is ignored when contr is run with either the --plain or
 # --pure flags
@@ -290,6 +302,12 @@ EOF_OPTIONS_FILE
 #    *:"${HOME}/.local/bin":*) ;;
 #    *) export PATH="${HOME}/.local/bin:${PATH}" ;;
 #esac
+#
+# User-specific aliases and functions
+#alias grep='grep --color=auto'
+#alias l.='ls -d .* --color=auto'
+#alias ll='ls -l --color=auto'
+#alias ls='ls --color=auto'
 #
 EOF_PROFILE_FILE
     }
@@ -342,16 +360,20 @@ abort() {
 [ ! -f /run/.containerenv ] && [ ! -f /.dockerenv ] &&
     abort "It seems we are not in a container. $SCRIPT_NAME is meant to run inside a container."
 
-[ -t 0 ] && export PS1="[📦 ${CONTR_IMAGE:-contr} \W]\\$ "
+[ -t 0 ] && export PS1="\n\[\e[1;36m\]\w\[\e[m\] inside \[\e[1;35m\]⬢ ${CONTR_IMAGE:-contr}\[\e[m\]\n\[\e[1;90m\]❯\[\e[m\] "
 # Substitute PS1= with __PS1= in these files so our value is not overwritten
 # Needed for Debian- and Ubuntu-based images
 [ -w /etc/bash.bashrc ] && sed -Ei '/^\s*PS1=/s/PS1=/__&/' /etc/bash.bashrc /etc/profile /root/.bashrc /root/.profile 2>/dev/null
 
 # Link to files in /root from HOME
 for file in /root/.* /root/*; do
-    [ "$file" != "/root/." ] && [ "$file" != "/root/.." ] && [ "$file" != "/root/*" ] &&
-        ln -s "$file" "$HOME" &&
-        log_debug "ln file=$file"
+    case "$file" in
+        '/root/.' | '/root/..' | '/root/*') ;;
+        *)
+            log_debug "ln -s $file $HOME"
+            ln -s "$file" "$HOME"
+            ;;
+    esac
 done
 
 # If HOME is in /var/home or similar, add a link to it in /home
@@ -362,10 +384,28 @@ case "$HOME" in
         ;;
 esac
 
-# shellcheck source=/dev/null
-[ -f "$CONTR_PROFILE_1" ] && . "$CONTR_PROFILE_1" && log_debug "sourced CONTR_PROFILE_1=$CONTR_PROFILE_1"
-# shellcheck source=/dev/null
-[ -f "$CONTR_PROFILE_2" ] && . "$CONTR_PROFILE_2" && log_debug "sourced CONTR_PROFILE_2=$CONTR_PROFILE_2"
+[ "$CONTR_DEBUG" ] || _dbg='#'
+export ENV="$HOME"/.profile
+
+write_profile_files() {
+    for p in .bashrc .cshrc .kshrc .profile .zshrc; do
+        printf "\\n%s printf '~/%s sourcing %s=%s\\\\n'\\n. '%s'\\n" "$_dbg" "$p" "$1" "$2" "$2" >>"${HOME}/$p"
+    done
+}
+
+if [ -f "$CONTR_PROFILE_1" ]; then
+    write_profile_files CONTR_PROFILE_1 "$CONTR_PROFILE_1"
+    log_debug "sourcing CONTR_PROFILE_1=$CONTR_PROFILE_1"
+    # shellcheck source=/dev/null
+    . "$CONTR_PROFILE_1"
+fi
+
+if [ -f "$CONTR_PROFILE_2" ]; then
+    write_profile_files CONTR_PROFILE_2 "$CONTR_PROFILE_2"
+    log_debug "sourcing CONTR_PROFILE_2=$CONTR_PROFILE_2"
+    # shellcheck source=/dev/null
+    . "$CONTR_PROFILE_2"
+fi
 
 log_debug "\$*=$*"
 if command -v "$1" >/dev/null; then
@@ -442,7 +482,8 @@ main() {
                 ;;
             *) break ;;
         esac
-        shift # Remove option from arguments list
+        shift                                # Remove option from arguments list
+        image_arg_pos=$((image_arg_pos - 1)) # Decrement image position in arguments list
     done
     log_debug "main() \$*=$*"
 
@@ -450,8 +491,11 @@ main() {
     if [ "$options_file" ]; then
         while IFS= read -r line; do
             case "$line" in
-                \#*) ;;                    # Ignore comments
-                -*) set -- "$line" "$@" ;; # Add option to arguments list
+                \#*) ;; # Ignore comments
+                -*)
+                    set -- "$line" "$@"                  # Add option to arguments list
+                    image_arg_pos=$((image_arg_pos + 1)) # Increment image position in arguments list
+                    ;;
             esac
         done <"$options_file"
         log_debug "main() \$*=$*"
@@ -461,38 +505,89 @@ main() {
     if [ "$per_image_options_file" ]; then
         while IFS= read -r line; do
             case "$line" in
-                \#*) ;;                    # Ignore comments
-                -*) set -- "$line" "$@" ;; # Add option to arguments list
+                \#*) ;; # Ignore comments
+                -*)
+                    set -- "$line" "$@"                  # Add option to arguments list
+                    image_arg_pos=$((image_arg_pos + 1)) # Increment image position in arguments list
+                    ;;
             esac
         done <"$per_image_options_file"
         log_debug "main() \$*=$*"
     fi
 
+    # Add noexec option to a volume definition unless an exec mode is explicitly set
+    make_volume_noexec() {
+        # If there are no colons we do nothing as this is an anonymous volume, which
+        # does not accept options, and in our case (podman-run --rm) is transient anyway
+        [ "${1##*:*}" ] && printf '%s' "$1" && exit
+        volume_opts="${1##*:}"
+        has_opts="${volume_opts##*/*}"
+        if [ "$has_opts" ]; then
+            if [ "${volume_opts##*exec*}" ]; then
+                printf '%s' "${1},noexec"
+            else
+                printf '%s' "$1"
+            fi
+        else
+            printf '%s' "${1}:noexec"
+        fi
+    }
+
+    # Change all volume arguments to include option noexec by default, unless exec is explicitly set
+    log_debug "main() image_arg_pos=$image_arg_pos"
+    argc="$#"
+    i=1
+    while [ "$i" -le "$argc" ]; do
+        opt="$1"
+        shifts=1
+        opt_arg=
+        if [ "$i" -lt "$image_arg_pos" ]; then
+            log_debug "${i}: $opt"
+            case "$opt" in
+                --volume=*)
+                    opt=$(make_volume_noexec "$opt")
+                    log_debug "${i}: $opt"
+                    ;;
+                -v | --volume)
+                    shifts=2
+                    opt_arg=$(make_volume_noexec "$2")
+                    opt_arg_pos=$((i + 1))
+                    log_debug "${opt_arg_pos}: $2"
+                    log_debug "${opt_arg_pos}: $opt_arg"
+                    ;;
+            esac
+        fi
+        set -- "$@" "$opt" ${opt_arg:+"$opt_arg"} # Add argument(s) to the end of arguments list
+        shift "$shifts"                           # Remove argument(s) from the beginning of arguments list
+        i=$((i + shifts))
+    done
+    log_debug "main() \$*=$*"
+    [ "$argc" = "$#" ] || abort "Error processing volume arguments. We should to have $argc arguments but got $# instead"
+
     [ "$entrypoint_file" ] && write_entrypoint_file "$entrypoint_file"
     is_tty=
     [ -t 0 ] && is_tty=1
 
-    podman run -i ${is_tty:+-t} --rm \
-        --image-volume=tmpfs \
+    exec podman run -i ${is_tty:+-t} --rm \
         --tz=local \
         --security-opt=label=disable \
         --group-add=keep-groups \
         --user="0:0" \
         --volume="$HOME" \
-        --volume="${PWD}:${PWD}:rw" \
+        --volume="${PWD}:${PWD}:rw,exec" \
         --workdir="$PWD" \
         --env=CONTR_DEBUG \
-        ${is_tty:+"--env=PS1=[📦 ${image:-contr} \W]\\$ "} \
+        ${is_tty:+"--env=PS1=\n\[\e[1;36m\]\w\[\e[m\] inside \[\e[1;35m\]⬢ ${image:-contr}\[\e[m\]\n\[\e[1;90m\]❯\[\e[m\] "} \
         ${block_network:+"--network=none"} \
         ${user_home:+"--env=HOME=$user_home"} \
         ${environment_file:+"--env-file=$environment_file"} \
         ${per_image_environment_file:+"--env-file=$per_image_environment_file"} \
-        ${entrypoint_file:+"--volume=${entrypoint_file}:${entrypoint_file}:ro"} \
+        ${entrypoint_file:+"--volume=${entrypoint_file}:${entrypoint_file}:ro,exec"} \
         ${entrypoint_file:+"--entrypoint=$entrypoint_file"} \
         ${entrypoint_file:+"--env=CONTR_IMAGE=$image"} \
-        ${profile_file:+"--volume=${profile_file}:${profile_file}:ro"} \
+        ${profile_file:+"--volume=${profile_file}:${profile_file}:ro,noexec"} \
         ${profile_file:+"--env=CONTR_PROFILE_1=${profile_file}"} \
-        ${per_image_profile_file:+"--volume=${per_image_profile_file}:${per_image_profile_file}:ro"} \
+        ${per_image_profile_file:+"--volume=${per_image_profile_file}:${per_image_profile_file}:ro,noexec"} \
         ${per_image_profile_file:+"--env=CONTR_PROFILE_2=${per_image_profile_file}"} \
         "$@"
 }
