@@ -405,7 +405,7 @@ main() {
 
     # Read podman options from file
     if [ "$options_file" ]; then
-        while IFS= read -r line; do
+        while IFS= read -r line || [ "$line" ]; do
             case "$line" in
                 \#*) ;; # Ignore comments
                 -*)
@@ -419,7 +419,7 @@ main() {
 
     # Read per-image podman options from file
     if [ "$per_image_options_file" ]; then
-        while IFS= read -r line; do
+        while IFS= read -r line || [ "$line" ]; do
             case "$line" in
                 \#*) ;; # Ignore comments
                 -*)
