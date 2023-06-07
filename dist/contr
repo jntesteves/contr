@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # SPDX-License-Identifier: Unlicense
-VERSION='0.3.0'
+VERSION='0.3.1'
 CMD="$(basename "$0")"
 PWD=$(pwd)
 USER_ID=$(id -u)
@@ -360,7 +360,10 @@ abort() {
 [ ! -f /run/.containerenv ] && [ ! -f /.dockerenv ] &&
     abort "It seems we are not in a container. $SCRIPT_NAME is meant to run inside a container."
 
-[ -t 0 ] && export PS1="\n\[\e[1;36m\]\w\[\e[m\] inside \[\e[1;35m\]⬢ ${CONTR_IMAGE:-contr}\[\e[m\]\n\[\e[1;90m\]❯\[\e[m\] "
+if [ "$PS1" != "$CONTR_PS1" ]; then
+    log_debug '[ "PS1" != "CONTR_PS1" ]'
+    export PS1="$CONTR_PS1"
+fi
 # Substitute PS1= with __PS1= in these files so our value is not overwritten
 # Needed for Debian- and Ubuntu-based images
 [ -w /etc/bash.bashrc ] && sed -Ei '/^\s*PS1=/s/PS1=/__&/' /etc/bash.bashrc /etc/profile /root/.bashrc /root/.profile 2>/dev/null
@@ -489,7 +492,7 @@ main() {
 
     # Read podman options from file
     if [ "$options_file" ]; then
-        while IFS= read -r line; do
+        while IFS= read -r line || [ "$line" ]; do
             case "$line" in
                 \#*) ;; # Ignore comments
                 -*)
@@ -503,7 +506,7 @@ main() {
 
     # Read per-image podman options from file
     if [ "$per_image_options_file" ]; then
-        while IFS= read -r line; do
+        while IFS= read -r line || [ "$line" ]; do
             case "$line" in
                 \#*) ;; # Ignore comments
                 -*)
@@ -517,20 +520,21 @@ main() {
 
     # Add noexec option to a volume definition unless an exec mode is explicitly set
     make_volume_noexec() {
-        # If there are no colons we do nothing as this is an anonymous volume, which
-        # does not accept options, and in our case (podman-run --rm) is transient anyway
-        [ "${1##*:*}" ] && printf '%s' "$1" && exit
-        volume_opts="${1##*:}"
-        has_opts="${volume_opts##*/*}"
-        if [ "$has_opts" ]; then
-            if [ "${volume_opts##*exec*}" ]; then
-                printf '%s' "${1},noexec"
-            else
+        case "$1" in
+            *:*) ;;
+            *)
+                # If there are no colons we do nothing as this is an anonymous volume, which
+                # does not accept options, and in our case (podman-run --rm) is transient anyway
                 printf '%s' "$1"
-            fi
-        else
-            printf '%s' "${1}:noexec"
-        fi
+                exit
+                ;;
+        esac
+        volume_opts="${1##*:}"
+        case "$volume_opts" in
+            */*) printf '%s' "${1}:noexec" ;; # Slashes mean the last component is a path, there are no options
+            *exec*) printf '%s' "$1" ;;       # exec/noexec already present, don't change anything
+            *) printf '%s' "${1},noexec" ;;   # Add noexec to options list
+        esac
     }
 
     # Change all volume arguments to include option noexec by default, unless exec is explicitly set
@@ -566,7 +570,11 @@ main() {
 
     [ "$entrypoint_file" ] && write_entrypoint_file "$entrypoint_file"
     is_tty=
-    [ -t 0 ] && is_tty=1
+    CONTR_PS1=
+    if [ -t 0 ]; then
+        is_tty=1
+        CONTR_PS1="$(printf '\n\001\033[1;36m\002\w\001\033[m\002 inside \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "${image:-contr}")"
+    fi
 
     exec podman run -i ${is_tty:+-t} --rm \
         --tz=local \
@@ -577,7 +585,7 @@ main() {
         --volume="${PWD}:${PWD}:rw,exec" \
         --workdir="$PWD" \
         --env=CONTR_DEBUG \
-        ${is_tty:+"--env=PS1=\n\[\e[1;36m\]\w\[\e[m\] inside \[\e[1;35m\]⬢ ${image:-contr}\[\e[m\]\n\[\e[1;90m\]❯\[\e[m\] "} \
+        ${CONTR_PS1:+"--env=PS1=$CONTR_PS1" "--env=CONTR_PS1=$CONTR_PS1"} \
         ${block_network:+"--network=none"} \
         ${user_home:+"--env=HOME=$user_home"} \
         ${environment_file:+"--env-file=$environment_file"} \

@@ -13,7 +13,7 @@ Example uses:
 
 ## Usage
 ```
-contr 0.3.0
+contr 0.3.1
 Run container exposing the current working directory
 
 Usage:
