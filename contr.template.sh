@@ -482,7 +482,11 @@ main() {
 
     [ "$entrypoint_file" ] && write_entrypoint_file "$entrypoint_file"
     is_tty=
-    [ -t 0 ] && is_tty=1
+    CONTR_PS1=
+    if [ -t 0 ]; then
+        is_tty=1
+        CONTR_PS1="$(printf '\n\001\033[1;36m\002\w\001\033[m\002 inside \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "${image:-contr}")"
+    fi
 
     exec podman run -i ${is_tty:+-t} --rm \
         --tz=local \
@@ -493,7 +497,7 @@ main() {
         --volume="${PWD}:${PWD}:rw,exec" \
         --workdir="$PWD" \
         --env=CONTR_DEBUG \
-        ${is_tty:+"--env=PS1=\n\[\e[1;36m\]\w\[\e[m\] inside \[\e[1;35m\]⬢ ${image:-contr}\[\e[m\]\n\[\e[1;90m\]❯\[\e[m\] "} \
+        ${CONTR_PS1:+"--env=PS1=$CONTR_PS1" "--env=CONTR_PS1=$CONTR_PS1"} \
         ${block_network:+"--network=none"} \
         ${user_home:+"--env=HOME=$user_home"} \
         ${environment_file:+"--env-file=$environment_file"} \

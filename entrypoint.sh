@@ -18,7 +18,10 @@ abort() {
 [ ! -f /run/.containerenv ] && [ ! -f /.dockerenv ] &&
     abort "It seems we are not in a container. $SCRIPT_NAME is meant to run inside a container."
 
-[ -t 0 ] && export PS1="\n\[\e[1;36m\]\w\[\e[m\] inside \[\e[1;35m\]⬢ ${CONTR_IMAGE:-contr}\[\e[m\]\n\[\e[1;90m\]❯\[\e[m\] "
+if [ "$PS1" != "$CONTR_PS1" ]; then
+    log_debug '[ "PS1" != "CONTR_PS1" ]'
+    export PS1="$CONTR_PS1"
+fi
 # Substitute PS1= with __PS1= in these files so our value is not overwritten
 # Needed for Debian- and Ubuntu-based images
 [ -w /etc/bash.bashrc ] && sed -Ei '/^\s*PS1=/s/PS1=/__&/' /etc/bash.bashrc /etc/profile /root/.bashrc /root/.profile 2>/dev/null

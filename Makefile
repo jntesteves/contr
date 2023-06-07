@@ -1,4 +1,4 @@
-version := 0.3.0
+version := 0.3.1-pre
 app_name := contr
 build_dir := dist
 app_files := contr.template.sh entrypoint.sh
