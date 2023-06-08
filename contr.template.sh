@@ -26,6 +26,7 @@ Usage:
 
 Options:
   --make-config[=IMAGE]  Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
+  -!                     Private mode, do not expose the current working directory to the container
   -n                     Allow network access
   --pio                  Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
   --plain                Do not override the image's entrypoint script
@@ -121,7 +122,7 @@ read_arguments() {
         last_flag=
         for arg in "$@"; do
             case "$arg" in
-                -n | --net | --net=* | --network | --network=*) block_network= ;;
+                -n | -!n | -n! | --net | --net=* | --network | --network=*) block_network= ;;
             esac
             case "$arg" in
                 -*) last_flag="$arg" ;;
@@ -355,6 +356,8 @@ main() {
     check_dependencies cat grep mkdir tr
     set_config_files
     user_home="$HOME"
+    volume_home=1
+    mount_pwd=1
 
     if [ "$action" = 'make-config' ]; then
         write_config_files "$config_dir"
@@ -372,6 +375,9 @@ main() {
     while :; do
         case "$1" in
             -n) ;;
+            -! | -!n | -n!)
+                mount_pwd=
+                ;;
             --pio)
                 log_debug "main() --pio"
                 [ "$per_image_environment_file" ] && environment_file=
@@ -402,6 +408,7 @@ main() {
         image_arg_pos=$((image_arg_pos - 1)) # Decrement image position in arguments list
     done
     log_debug "main() \$*=$*"
+    [ ! "$mount_pwd" ] && [ ! "$user_home" ] && volume_home=
 
     # Read podman options from file
     if [ "$options_file" ]; then
@@ -494,22 +501,21 @@ main() {
         --security-opt=label=disable \
         --group-add=keep-groups \
         --user="0:0" \
-        --volume="$HOME" \
-        --volume="${PWD}:${PWD}:rw,exec" \
-        --workdir="$PWD" \
         --env=CONTR_DEBUG \
+        ${volume_home:+"--volume=$HOME"} \
+        ${mount_pwd:+"--volume=${PWD}:${PWD}:rw,exec" "--workdir=$PWD"} \
         ${CONTR_PS1:+"--env=PS1=$CONTR_PS1" "--env=CONTR_PS1=$CONTR_PS1"} \
         ${block_network:+"--network=none"} \
         ${user_home:+"--env=HOME=$user_home"} \
         ${environment_file:+"--env-file=$environment_file"} \
         ${per_image_environment_file:+"--env-file=$per_image_environment_file"} \
-        ${entrypoint_file:+"--volume=${entrypoint_file}:${entrypoint_file}:ro,exec"} \
-        ${entrypoint_file:+"--entrypoint=$entrypoint_file"} \
+        ${entrypoint_file:+"--volume=${entrypoint_file}:/run/contr/entrypoint:ro,exec"} \
+        ${entrypoint_file:+"--entrypoint=/run/contr/entrypoint"} \
         ${entrypoint_file:+"--env=CONTR_IMAGE=$image"} \
-        ${profile_file:+"--volume=${profile_file}:${profile_file}:ro,noexec"} \
-        ${profile_file:+"--env=CONTR_PROFILE_1=${profile_file}"} \
-        ${per_image_profile_file:+"--volume=${per_image_profile_file}:${per_image_profile_file}:ro,noexec"} \
-        ${per_image_profile_file:+"--env=CONTR_PROFILE_2=${per_image_profile_file}"} \
+        ${profile_file:+"--volume=${profile_file}:/run/contr/profile1:ro,noexec"} \
+        ${profile_file:+"--env=CONTR_PROFILE_1=/run/contr/profile1"} \
+        ${per_image_profile_file:+"--volume=${per_image_profile_file}:/run/contr/profile2:ro,noexec"} \
+        ${per_image_profile_file:+"--env=CONTR_PROFILE_2=/run/contr/profile2"} \
         "$@"
 }
 

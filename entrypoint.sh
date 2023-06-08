@@ -27,15 +27,17 @@ fi
 [ -w /etc/bash.bashrc ] && sed -Ei '/^\s*PS1=/s/PS1=/__&/' /etc/bash.bashrc /etc/profile /root/.bashrc /root/.profile 2>/dev/null
 
 # Link to files in /root from HOME
-for file in /root/.* /root/*; do
-    case "$file" in
-        '/root/.' | '/root/..' | '/root/*') ;;
-        *)
-            log_debug "ln -s $file $HOME"
-            ln -s "$file" "$HOME"
-            ;;
-    esac
-done
+if [ "$HOME" != /root ]; then
+    for file in /root/.* /root/*; do
+        case "$file" in
+            '/root/.' | '/root/..' | '/root/.*' | '/root/*') ;;
+            *)
+                log_debug "ln -s $file $HOME"
+                ln -s "$file" "$HOME"
+                ;;
+        esac
+    done
+fi
 
 # If HOME is in /var/home or similar, add a link to it in /home
 case "$HOME" in
