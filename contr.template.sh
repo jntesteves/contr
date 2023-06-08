@@ -63,11 +63,10 @@ abort() {
 
 # Remove tag from a container image's name/URI
 remove_tag() {
-    if printf '%s' "$1" | grep -Eq ':[^/]+$' -; then
-        printf '%s' "${1%:*}"
-    else
-        printf '%s' "$1"
-    fi
+    case "${1##*:}" in              # Get the last component
+        */*) printf '%s' "$1" ;;    # If there are slashes, it is not a tag
+        *) printf '%s' "${1%:*}" ;; # Otherwise, remove the last component
+    esac
 }
 
 # Sanitize string for use in filename. Replaces / and : with _
