@@ -26,7 +26,7 @@ Usage:
 
 Options:
   --make-config[=IMAGE]  Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
-  -!                     Private mode, do not expose the current working directory to the container
+  -0                     Private mode, do not expose the current working directory to the container
   -n                     Allow network access
   --pio                  Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
   --plain                Do not override the image's entrypoint script
@@ -121,7 +121,7 @@ read_arguments() {
         last_flag=
         for arg in "$@"; do
             case "$arg" in
-                -n | -!n | -n! | --net | --net=* | --network | --network=*) block_network= ;;
+                -n | -0n | -n0 | --net | --net=* | --network | --network=*) block_network= ;;
             esac
             case "$arg" in
                 -*) last_flag="$arg" ;;
@@ -364,13 +364,12 @@ main() {
 
     # From here on we assume the default action = 'podman-run'
     check_dependencies cat chmod grep mkdir podman tr
-    [ "$HOME" = "$PWD" ] && abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
 
     # Read options from command line
     while :; do
         case "$1" in
             -n) ;;
-            -! | -!n | -n!)
+            -0 | -0n | -n0)
                 mount_pwd=
                 ;;
             --pio)
@@ -404,6 +403,7 @@ main() {
     done
     log_debug "main() \$*=$*"
     [ ! "$mount_pwd" ] && [ ! "$user_home" ] && volume_home=
+    [ "$mount_pwd" ] && [ "$HOME" = "$PWD" ] && abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
 
     # Read podman options from file
     if [ "$options_file" ]; then
