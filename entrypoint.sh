@@ -6,10 +6,11 @@
 # file to setup your custom environment.
 #
 SCRIPT_NAME="$(basename "$(realpath "$0")")"
+is_debug="${CONTR_DEBUG:+1}"
 
 log_error() { printf '%s\n' "$*" >&2; }
 log_info() { printf '%s\n' "$*"; }
-log_debug() { [ "$CONTR_DEBUG" ] && printf '%s\n' "DEBUG entrypoint $*"; }
+log_debug() { [ "$is_debug" ] && printf '%s\n' "DEBUG entrypoint $*"; }
 abort() {
     log_error "Error on entrypoint script: $*"
     exit 1
@@ -47,7 +48,7 @@ case "$HOME" in
         ;;
 esac
 
-[ "$CONTR_DEBUG" ] || _dbg='#'
+[ "$is_debug" ] && _dbg= || _dbg='#'
 export ENV="$HOME"/.profile
 
 write_profile_files() {

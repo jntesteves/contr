@@ -7,10 +7,7 @@ USER_ID=$(id -u)
 [ -d "/run/user/$USER_ID" ] && [ -w "/run/user/$USER_ID" ] && XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$USER_ID}"
 config_dir="$CONTR_CONFIG_DIR"
 runtime_dir="$CONTR_RUNTIME_DIR"
-environment_file="$CONTR_ENVIRONMENT_FILE"
-options_file="$CONTR_OPTIONS_FILE"
-profile_file="$CONTR_PROFILE_FILE"
-is_debug="$CONTR_DEBUG"
+is_debug="${CONTR_DEBUG:+1}"
 
 print_help_text() {
     podman_options=${1-"  -*                     Any option for the podman-run command. Run '$CMD --help-all' for a full list of options"}
@@ -38,11 +35,9 @@ Podman options:
 $podman_options
 
 Environment variables:
-  CONTR_CONFIG_DIR        Configuration directory. Defaults to \$XDG_CONFIG_HOME/contr or ~/.config/contr
-  CONTR_ENVIRONMENT_FILE  Path to environment file. Defaults to \$CONTR_CONFIG_DIR/environment
-  CONTR_OPTIONS_FILE      Path to options file. Defaults to \$CONTR_CONFIG_DIR/options
-  CONTR_PROFILE_FILE      Path to profile file. Defaults to \$CONTR_CONFIG_DIR/profile
-  CONTR_RUNTIME_DIR       Runtime directory. Defaults to \$XDG_RUNTIME_DIR/contr or /run/user/\$UID/contr or /tmp/contr
+  CONTR_CONFIG_DIR   Configuration directory. Defaults to \$XDG_CONFIG_HOME/contr or ~/.config/contr
+  CONTR_RUNTIME_DIR  Runtime directory. Defaults to \$XDG_RUNTIME_DIR/contr or /run/user/\$UID/contr or /tmp/contr
+  CONTR_DEBUG        Debug flags
 
 Examples:
   $CMD alpine
@@ -168,17 +163,17 @@ set_config_files() {
     entrypoint_file="$runtime_dir/entrypoint"
     log_debug "set_config_files() entrypoint_file='$entrypoint_file'"
 
-    [ "$environment_file" ] || environment_file="$config_dir/environment"
+    environment_file="$config_dir/environment"
     log_debug "set_config_files() environment_file='$environment_file'"
     [ ! -r "$environment_file" ] && environment_file= &&
         log_debug "set_config_files() environment_file unreadable"
 
-    [ "$options_file" ] || options_file="$config_dir/options"
+    options_file="$config_dir/options"
     log_debug "set_config_files() options_file='$options_file'"
     [ ! -r "$options_file" ] && options_file= &&
         log_debug "set_config_files() options_file unreadable"
 
-    [ "$profile_file" ] || profile_file="$config_dir/profile"
+    profile_file="$config_dir/profile"
     log_debug "set_config_files() profile_file='$profile_file'"
     [ ! -r "$profile_file" ] && profile_file= &&
         log_debug "set_config_files() profile_file unreadable"
