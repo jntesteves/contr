@@ -6,7 +6,7 @@ PWD=$(pwd)
 USER_ID=$(id -u)
 [ -d "/run/user/$USER_ID" ] && [ -w "/run/user/$USER_ID" ] && XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$USER_ID}"
 config_dir="$CONTR_CONFIG_DIR"
-state_dir="$CONTR_STATE_DIR"
+runtime_dir="$CONTR_RUNTIME_DIR"
 environment_file="$CONTR_ENVIRONMENT_FILE"
 options_file="$CONTR_OPTIONS_FILE"
 profile_file="$CONTR_PROFILE_FILE"
@@ -42,7 +42,7 @@ Environment variables:
   CONTR_ENVIRONMENT_FILE  Path to environment file. Defaults to \$CONTR_CONFIG_DIR/environment
   CONTR_OPTIONS_FILE      Path to options file. Defaults to \$CONTR_CONFIG_DIR/options
   CONTR_PROFILE_FILE      Path to profile file. Defaults to \$CONTR_CONFIG_DIR/profile
-  CONTR_STATE_DIR         State directory. Defaults to \$XDG_STATE_HOME/contr or ~/.local/state/contr
+  CONTR_RUNTIME_DIR       Runtime directory. Defaults to \$XDG_RUNTIME_DIR/contr or /run/user/\$UID/contr or /tmp/contr
 
 Examples:
   $CMD alpine
@@ -162,10 +162,10 @@ set_config_files() {
     [ "$config_dir" ] || config_dir="${XDG_CONFIG_HOME:-"$HOME/.config"}/contr"
     log_debug "set_config_files() config_dir='$config_dir'"
 
-    [ "$state_dir" ] || state_dir="${XDG_STATE_HOME:-"$HOME/.local/state"}/contr"
-    log_debug "set_config_files() state_dir='$state_dir'"
+    [ "$runtime_dir" ] || runtime_dir="${XDG_RUNTIME_DIR:-/tmp}/contr"
+    log_debug "set_config_files() runtime_dir='$runtime_dir'"
 
-    entrypoint_file="$state_dir/entrypoint"
+    entrypoint_file="$runtime_dir/entrypoint"
     log_debug "set_config_files() entrypoint_file='$entrypoint_file'"
 
     [ "$environment_file" ] || environment_file="$config_dir/environment"
@@ -182,10 +182,6 @@ set_config_files() {
     log_debug "set_config_files() profile_file='$profile_file'"
     [ ! -r "$profile_file" ] && profile_file= &&
         log_debug "set_config_files() profile_file unreadable"
-
-    runtime_dir="${XDG_RUNTIME_DIR:-/tmp}/contr"
-    runtime_cache_dir="${runtime_dir}/cache"
-    log_debug "set_config_files() runtime_cache_dir='$runtime_cache_dir'"
 
     per_image_config_dir=
     per_image_environment_file=
