@@ -10,7 +10,7 @@ runtime_dir="$CONTR_RUNTIME_DIR"
 is_debug="${CONTR_DEBUG:+1}"
 
 print_help_text() {
-    podman_options=${1-"  -*                     Any option for the podman-run command. Run '$CMD --help-all' for a full list of options"}
+    podman_options=${1-"  -*                       Any option for the podman-run command. Run '$CMD --help-all' for a full list of options"}
     podman_options=${podman_options:-'  Failed to get Podman options, check if Podman is installed correctly'}
 
     cat <<EOF
@@ -18,18 +18,24 @@ contr $VERSION
 Run container exposing the current working directory
 
 Usage:
-  $CMD [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
+  $CMD [OPTION...] [--] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
   $CMD --make-config[=IMAGE]
 
 Options:
-  --make-config[=IMAGE]  Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
-  -0                     Private mode, do not expose the current working directory to the container
-  -n                     Allow network access
-  --pio                  Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
-  --plain                Do not override the image's entrypoint script
-  --pure                 Ignore all configuration files and custom entrypoint
-  --help                 Print this help text and exit
-  --help-all             Print this help text with all options to podman-run included and exit
+  --make-config[=IMAGE]    Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
+  --cwd-mode=(0 | 4 | 5 | 6 | 7),
+  --cwd-mode={ro,rw,exec}  The permission mode for mounting the current working directory inside the container. If set to 0, CWD will not be mounted inside the container. Numbers 4-7 have the same meanings as in chmod's octal values. Short flags exist for the octal form, as follows:
+  -0                       Do not mount the current working directory inside the container '--cwd-mode=0'
+  -4                       Mount the current working directory with read-only permissions '--cwd-mode=ro'
+  -5                       Mount the current working directory with read and execute permissions '--cwd-mode=ro,exec'
+  -6                       Mount the current working directory with read and write permissions '--cwd-mode=rw'
+  -7                       Mount the current working directory with read, write and execute permissions (default) '--cwd-mode=rw,exec'
+  -n                       Allow network access
+  --pio                    Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
+  --plain                  Do not override the image's entrypoint script
+  --pure                   Ignore all configuration files and custom entrypoint
+  --help                   Print this help text and exit
+  --help-all               Print this help text with all options to podman-run included and exit
 
 Podman options:
 $podman_options
@@ -55,6 +61,7 @@ abort() {
     log_error "$*"
     exit 1
 }
+missing_opt_arg() { abort "Missing argument for option $*. Run $CMD --help"; }
 
 # Remove tag from a container image's name/URI
 remove_tag() {
@@ -116,7 +123,7 @@ read_arguments() {
         last_flag=
         for arg in "$@"; do
             case "$arg" in
-                -n | -0n | -n0 | --net | --net=* | --network | --network=*) block_network= ;;
+                -n | -n[04567] | -[04567]n | --net | --net=* | --network | --network=*) block_network= ;;
             esac
             case "$arg" in
                 -*) last_flag="$arg" ;;
@@ -341,13 +348,25 @@ EOF_ENTRYPOINT_FILE
     chmod +x "$1"
 }
 
+set_cwd_mode() {
+    case "$1" in
+        0) cwd_mode= ;;
+        4) cwd_mode=ro ;;
+        5) cwd_mode=ro,exec ;;
+        6) cwd_mode=rw ;;
+        7) cwd_mode=rw,exec ;;
+        *) cwd_mode="$1" ;;
+    esac
+    log_debug "set_cwd_mode() cwd_mode=$cwd_mode"
+}
+
 main() {
     read_arguments "$@"
     check_dependencies cat grep mkdir tr
     set_config_files
     user_home="$HOME"
     volume_home=1
-    mount_pwd=1
+    cwd_mode='rw,exec'
 
     if [ "$action" = 'make-config' ]; then
         write_config_files "$config_dir"
@@ -362,26 +381,30 @@ main() {
 
     # Read options from command line
     while :; do
+        log_debug "main() option '$1'"
         case "$1" in
             -n) ;;
-            -0 | -0n | -n0)
-                mount_pwd=
+            --cwd-mode) missing_opt_arg '--cwd-mode' ;;
+            --cwd-mode=*)
+                set_cwd_mode "${1#'--cwd-mode='}"
+                ;;
+            -[04567] | -n[04567] | -[04567]n)
+                opt="${1%n}"
+                pad="${opt%?}"
+                set_cwd_mode "${opt#"$pad"}"
                 ;;
             --pio)
-                log_debug "main() --pio"
                 [ "$per_image_environment_file" ] && environment_file=
                 [ "$per_image_options_file" ] && options_file=
                 [ "$per_image_profile_file" ] && profile_file=
                 ;;
             --plain)
-                log_debug "main() --plain"
                 user_home=
                 entrypoint_file=
                 profile_file=
                 per_image_profile_file=
                 ;;
             --pure)
-                log_debug "main() --pure"
                 user_home=
                 entrypoint_file=
                 environment_file=
@@ -391,14 +414,15 @@ main() {
                 per_image_options_file=
                 per_image_profile_file=
                 ;;
+            --) shift && break ;;
             *) break ;;
         esac
         shift                                # Remove option from arguments list
         image_arg_pos=$((image_arg_pos - 1)) # Decrement image position in arguments list
     done
     log_debug "main() \$*=$*"
-    [ ! "$mount_pwd" ] && [ ! "$user_home" ] && volume_home=
-    [ "$mount_pwd" ] && [ "$HOME" = "$PWD" ] && abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
+    [ ! "$cwd_mode" ] && [ ! "$user_home" ] && volume_home=
+    [ "$cwd_mode" ] && [ "$HOME" = "$PWD" ] && abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
 
     # Read podman options from file
     if [ "$options_file" ]; then
@@ -493,7 +517,7 @@ main() {
         --user="0:0" \
         --env=CONTR_DEBUG \
         ${volume_home:+"--volume=$HOME"} \
-        ${mount_pwd:+"--volume=${PWD}:${PWD}:rw,exec" "--workdir=$PWD"} \
+        ${cwd_mode:+"--volume=${PWD}:${PWD}:$cwd_mode" "--workdir=$PWD"} \
         ${CONTR_PS1:+"--env=PS1=$CONTR_PS1" "--env=CONTR_PS1=$CONTR_PS1"} \
         ${block_network:+"--network=none"} \
         ${user_home:+"--env=HOME=$user_home"} \
