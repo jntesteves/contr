@@ -10,7 +10,7 @@ is_debug="${CONTR_DEBUG:+1}"
 
 log_error() { printf '%s\n' "$*" >&2; }
 log_info() { printf '%s\n' "$*"; }
-log_debug() { [ "$is_debug" ] && printf '%s\n' "DEBUG entrypoint $*"; }
+log_debug() { [ "$is_debug" ] && printf 'DEBUG entrypoint %s\n' "$*"; }
 abort() {
     log_error "Error on entrypoint script: $*"
     exit 1

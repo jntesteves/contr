@@ -3,12 +3,9 @@
 CMD="$0"
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 SCRIPT_NAME="$(basename "$(realpath "$0")")"
-is_verbose=${BUILD_DEBUG:+1}
-[ "$BUILD_DEBUG" ] && [ ! "${BUILD_DEBUG##*trace*}" ] && is_vv=1
-[ "$BUILD_DEBUG" ] && [ ! "${BUILD_DEBUG##*dry-run*}" ] && is_dry_run=1
-app_name=
-build_dir=
-version=
+is_debug=${BUILD_DEBUG:+1}
+case "$BUILD_DEBUG" in *trace*) is_trace=1 ;; esac
+case "$BUILD_DEBUG" in *dry-run*) is_dry_run=1 ;; esac
 
 print_help_text() {
     cat <<EOF
@@ -25,11 +22,11 @@ EOF
     exit
 }
 
-log_error() { printf '%s ERROR %s\n' "$(date -I'seconds')" "$*" >&2; }
-log_warn() { printf '%s WARN %s\n' "$(date -I'seconds')" "$*" >&2; }
-log_info() { printf '%s INFO %s\n' "$(date -I'seconds')" "$*"; }
-log_debug() { [ "$is_verbose" ] && printf '%s DEBUG %s\n' "$(date -I'seconds')" "$*"; }
-log_trace() { [ "$is_vv" ] && printf '%s TRACE %s\n' "$(date -I'seconds')" "$*"; }
+log_error() { printf 'ERROR %s\n' "$*" >&2; }
+log_warn() { printf 'WARN %s\n' "$*" >&2; }
+log_info() { printf '%s\n' "$*"; }
+log_debug() { [ "$is_debug" ] && printf 'DEBUG %s\n' "$*"; }
+log_trace() { [ "$is_trace" ] && printf 'TRACE %s\n' "$*"; }
 abort() {
     log_error "$*"
     exit 1
@@ -37,7 +34,7 @@ abort() {
 unknown_option() { abort "Unknown option $*. Run $CMD --help"; }
 
 get_argv() {
-    argc=$((${argc:-0} + 1))
+    argc=$((argc + 1))
     case "$argc" in
         1) app_name="$1" ;;
         2) build_dir="$1" ;;
@@ -47,11 +44,15 @@ get_argv() {
 }
 
 read_arguments() {
+    app_name=
+    build_dir=
+    version=
+    argc=
     for _arg in "$@"; do
         case "$_arg" in
             --dry-run) is_dry_run=1 ;;
-            --verbose | -v) is_verbose=1 ;;
-            -vv) is_vv=1 && is_verbose=1 ;;
+            --verbose | -v) is_debug=1 ;;
+            -vv) is_trace=1 && is_debug=1 ;;
             --help | -h) print_help_text ;;
             -*) unknown_option "$_arg" ;;
             *) get_argv "$_arg" ;;
@@ -62,17 +63,18 @@ read_arguments() {
     [ "$build_dir" ] || abort "Missing BUILD_DIR argument. Run $CMD --help"
     [ "$version" ] || abort "Missing VERSION argument. Run $CMD --help"
 
-    version_is_pre_release=
-    # If version has any character that is not a . or a digit, it is a pre-release version
-    [ "${version##*[!.0-9]*}" ] || version_is_pre_release=1
+    case "$version" in
+        *[!.0-9]*) version_is_pre_release=1 ;; # If version has any character that is not a . or a digit, it is a pre-release version
+        *) version_is_pre_release= ;;
+    esac
     app_template_file="${SCRIPT_DIR}/${app_name}.template.sh"
     entrypoint_file="${SCRIPT_DIR}/entrypoint.sh"
     build_path="${SCRIPT_DIR}/$build_dir"
     target_file="${build_path}/$app_name"
 
     log_debug "is_dry_run=$is_dry_run"
-    log_debug "is_verbose=$is_verbose"
-    log_debug "is_vv=$is_vv"
+    log_debug "is_debug=$is_debug"
+    log_debug "is_trace=$is_trace"
     log_debug "app_name=$app_name"
     log_debug "build_dir=$build_dir"
     log_debug "version=$version"

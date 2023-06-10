@@ -56,7 +56,7 @@ EOF
 
 log_error() { printf '%s\n' "$*" >&2; }
 log_info() { printf '%s\n' "$*"; }
-log_debug() { [ "$is_debug" ] && printf '%s\n' "DEBUG $*"; }
+log_debug() { [ "$is_debug" ] && printf 'DEBUG %s\n' "$*"; }
 abort() {
     log_error "$*"
     exit 1
