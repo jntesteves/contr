@@ -2,31 +2,27 @@ version := 0.4.0-pre
 app_name := contr
 build_dir := dist
 app_files := contr.template.sh entrypoint.sh
-ifdef PREFIX
-install_prefix := $(PREFIX)
-else
-install_prefix := ~/.local
-endif
+PREFIX := ~/.local
 
 $(build_dir): $(app_files)
 	./build.sh $(app_name) $@ $(version)
 
 .PHONY: install
 install:
-	install -DZ -m 755 -t $(install_prefix)/bin $(build_dir)/$(app_name)
+	install -DZ -m 755 -t $(PREFIX)/bin $(build_dir)/$(app_name)
 
 .PHONY: uninstall
 uninstall:
-	rm -f $(install_prefix)/bin/$(app_name)
+	rm -f $(PREFIX)/bin/$(app_name)
 
 .PHONY: lint
 lint:
-	shellcheck *.sh $(build_dir)/$(app_name)
-	shfmt -p -i 4 -ci -d *.sh $(build_dir)/$(app_name)
+	shellcheck ./*.sh $(build_dir)/$(app_name) make
+	shfmt -p -i 4 -ci -d ./*.sh $(build_dir)/$(app_name) make
 
 .PHONY: format
 format:
-	shfmt -p -i 4 -ci -w *.sh
+	shfmt -p -i 4 -ci -w ./*.sh make
 
 .PHONY: develop-image
 develop-image:

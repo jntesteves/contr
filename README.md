@@ -50,20 +50,20 @@ Examples:
 contr depends on Podman and a POSIX-compliant shell with core utilities for operation.
 
 ## Installing
-Download or clone this repository with git. A pre-built version is checked-in on the repository, at `dist/contr`. It can be easily installed with `make install` or, without make, a simple file copy to a directory in the PATH, for example `cp dist/contr ~/.local/bin/`.
+Download or clone this repository with git. The latest stable version is pre-built and checked-in on the repository, at `dist/contr`. It can be easily installed with `./make install`, or a simple file copy to a directory in the PATH, for example `cp dist/contr ~/.local/bin/`.
 
 ```shell
 # To install into default PREFIX (~/.local)
-make install
+./make install
 
 # To uninstall from default PREFIX
-make uninstall
+./make uninstall
 
 # You can install into a different prefix by setting the PREFIX parameter
-sudo make install PREFIX=/usr/local
+sudo ./make install PREFIX=/usr/local
 
 # To uninstall from system PREFIX
-sudo make uninstall PREFIX=/usr/local
+sudo ./make uninstall PREFIX=/usr/local
 ```
 
 We use the directory at `~/.local/bin` by default, as it is defined as a place for user-specific executable files in the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) and should already be included in the PATH environment variable. If this directory is not present in the PATH, you can add it in your `~/.bashrc` (or similar) file. The following code does that:
@@ -85,13 +85,13 @@ podman build -f Containerfile.develop -t contr-develop
 contr contr-develop
 
 # Validate your changes for correctness
-make lint
+./make lint
 
 # Build contr
-make
+./make
 ```
 
-Every change must pass lint and formatting validation with `make lint`. As an option, formatting can be automatically applied with `make format`.
+Every change must pass lint and formatting validation with `./make lint`. As an option, formatting can be automatically applied with `./make format`.
 
 ## License
 This is free and unencumbered software released into the public domain.
