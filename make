@@ -14,18 +14,6 @@ abort() {
     exit 1
 }
 
-defer_to_make() {
-    case "$BUILD_DEBUG" in
-        *make*) ;;
-        *)
-            if command -v make >/dev/null; then
-                log_debug 'Deferring to system make'
-                exec make "$@"
-            fi
-            ;;
-    esac
-}
-
 # Escape text for use in a shell script single-quoted string
 escape_single_quotes() {
     printf '%s' "$*" | sed -E "s/'/'\\\\''/g"
@@ -66,7 +54,6 @@ read_arguments() {
     done
 }
 
-defer_to_make "$@"
 read_arguments "$@"
 
 case "$target" in
