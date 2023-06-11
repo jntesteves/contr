@@ -1,15 +1,30 @@
 # contr
 
-contr is a tool to create ad-hoc containers with limited access to the host system. By default, contr containers can only access the current working directory. Access to any other filesystem path must be given explicitly. Network access is blocked by default. Volumes are `noexec` by default, you have to explicitly add the `:exec` option to allow code execution from within a volume.
+contr (pronounced "conter") is a tool to create ad-hoc containers with limited access to the host system. By default, contr containers can only access the current working directory. Access to any other filesystem path must be given explicitly. Network access is blocked by default. Volumes are `noexec` by default, you have to explicitly add the `:exec` option to allow code execution from within a volume.
 
 Under the hood, contr uses [Podman](https://podman.io/) to do the heavy lifting, and all options to [podman-run](https://docs.podman.io/en/latest/markdown/podman-run.1.html) are accepted.
 
-Example uses:
-* You cloned the git repository of a program you want to build, but you don't want `make` and other build scripts to have full access to your computer (even when not malicious, build scripts frequently have bugs. A `make clean` script accidentally erasing data elsewhere is a common issue). You can use contr to run the build inside a container.
+## Why use contr
+
+Here are some example use-cases of contr:
+
+* You clone the git repository of a program you want to build, but you don't want `make` and other build scripts to have full access to all your data (even when not malicious, build scripts frequently have bugs. A `make clean` script accidentally erasing data elsewhere is a common issue). You can use contr to run the build inside a container.
   * contr itself is built inside a container like this!
-* You want to run a program without installing it. Many programs offer a container option, but these containers are usually made by people with little experience with Linux containers, with long, convoluted and insecure instructions on how to use.
-  * Take av1an's [docker instructions](https://github.com/master-of-zen/Av1an/blob/master/docs/DOCKER.md) for example. Running the same container under contr is not only safer, but also much simpler: `contr masterofzen/av1an:master av1an --help`  
+* You want to run a CLI program without installing it on the host OS. Many programs offer a container option, but these are usually made by people with little experience with Linux containers, with long, convoluted and insecure instructions on how to use.
+  * Take Av1an's [docker instructions](https://github.com/master-of-zen/Av1an/blob/master/docs/DOCKER.md) for example. Running the same container under contr is not only safer, but also much simpler: `contr masterofzen/av1an:master av1an --help`  
   Alternatively, you can enter the container with `contr masterofzen/av1an:master`, and then run any commands inside it: `av1an --help`
+* You want to make it easier for your users to configure and build your software. Offer a container image with all build dependencies pre-installed, instead of filling your README file with build instructions for every OS under the sun. You likely already have such an image for CI purposes.
+  * Just commit the Containerfile to the repository and `podman build -t my-develop-image`, and you're ready to use contr!
+
+## Why not use Toolbx/Distrobox instead
+
+Although contr fills some of the same use-cases of Toolbx/Distrobox, they are very different tools, trying to solve different problems. contr is a security tool, its purpose is to make computing safer. Toolbx/Distrobox can be seen as compatibility tools, they are a great way to bring the entire legacy of Linux distributions' packaging efforts into new immutable OSes. To achieve maximum compatibility with even GUI apps and system services, these tools expose the entire host OS to the container.
+
+If you need a "pet" container to install all your programs inside, to update and change over time, to install and run GUI apps, or to install system management tools that need complete access to your computer, use Toolbx/Distrobox.
+
+contr also brings most Linux distribution packages to any new Linux OS, but does so in a different way. In contr, images are pre-built with the software you need, usually from a recipe, like a [Containerfile](https://github.com/containers/common/blob/main/docs/Containerfile.5.md). Container images in contr should be limited in scope, you will usually have one image for each use-case. contr containers are not appropriate for installing more packages inside at runtime, these are not "pet" containers, they are transient, all changes are lost on exit.
+
+For running CLI/TUI programs with limited access to your data, compiling and testing software (`make`, `npm install`, `cargo build`, etc.), or running scripts securely, use contr.
 
 ## Usage
 ```
@@ -47,10 +62,10 @@ Examples:
 ```
 
 ## Dependencies
-contr depends on Podman and a POSIX-compliant shell with core utilities for operation.
+contr depends on Podman and a POSIX-compatible shell with core utilities for operation.
 
 ## Installing
-Download or clone this repository with git. The latest stable version is pre-built and checked-in on the repository, at `dist/contr`. It can be easily installed with `./make install`, or a simple file copy to a directory in the PATH, for example `cp dist/contr ~/.local/bin/`.
+Download or clone this repository with git. The latest stable version is pre-built and checked-in on the repository at `dist/contr`. It can be easily installed with `./make install`, or a simple file copy to a directory in the PATH, for example `cp dist/contr ~/.local/bin/`.
 
 ```shell
 # To install into default PREFIX (~/.local)

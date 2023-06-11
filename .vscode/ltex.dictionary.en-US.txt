@@ -3,6 +3,7 @@ containerenv
 Containerfile
 contr
 cshrc
+Distrobox
 dockerenv
 esac
 filesystem
@@ -23,5 +24,6 @@ sed
 shellcheck
 shfmt
 tmpfs
+Toolbx
 UNLICENSE
 workdir
