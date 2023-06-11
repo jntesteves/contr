@@ -109,20 +109,10 @@ check_dependencies() {
     fi
 }
 
-# Escape text for use as replacement string in sed's 's' command
+# Escape text for literal use in a replacement string in sed's 's' command
 sed_replacement_escape() {
-    printf '%s' "$*" | sed -E 's/[\\|/&]/\\&/g' | sed -E '$!s/$/\\n/' | tr -d '\n'
+    printf '%s' "$*" | sed -E -e 's/[\\/&]/\\&/g' -e '$!s/$/\\n/' | tr -d '\n'
 }
-
-# Escape text for literal use in a shell script unquoted here-doc
-# shell_script_escape() {
-#     printf '%s' "$*" | sed -E 's/[\\$`]/\\&/g'
-# }
-
-# Escape text for use in a shell script single-quoted string
-# escape_single_quotes() {
-#     printf '%s' "$*" | sed -E "s/'/'\\\\''/g"
-# }
 
 # Strip single quotes from text for use in a shell script single-quoted string
 strip_single_quotes() {
