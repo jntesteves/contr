@@ -507,7 +507,8 @@ main() {
     CONTR_PS1=
     if [ -t 0 ]; then
         is_tty=1
-        CONTR_PS1="$(printf '\n\001\033[1;36m\002\w\001\033[m\002 inside \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "${image:-contr}")"
+        xterm_title=$(printf '\001\033]2;\w — contr ⬢ %s\a\002' "$image")
+        CONTR_PS1="$(printf '%s\n\001\033[1;36m\002\w\001\033[m\002 inside \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "$xterm_title" "$image")"
     fi
 
     exec podman run -i ${is_tty:+-t} --rm \

@@ -19,9 +19,19 @@ abort() {
 [ ! -f /run/.containerenv ] && [ ! -f /.dockerenv ] &&
     abort "It seems we are not in a container. $SCRIPT_NAME is meant to run inside a container."
 
-if [ "$PS1" != "$CONTR_PS1" ]; then
-    log_debug '[ "PS1" != "CONTR_PS1" ]'
-    export PS1="$CONTR_PS1"
+if [ "$CONTR_PS1" ]; then
+    if [ "$PS1" != "$CONTR_PS1" ]; then
+        log_debug '[ "PS1" != "CONTR_PS1" ]'
+        export PS1="$CONTR_PS1"
+    fi
+    which_sh="$(basename "$(realpath "$(command -v sh)")")"
+    if [ "$which_sh" = busybox ]; then
+        log_debug 'Detected busybox, changing value of PS1'
+        # Replace all occurrences of control characters 0x01 and 0x02 with textual escapes \[ and \]
+        CONTR_PS1_BUSYBOX="$(printf '%s' "$CONTR_PS1" | sed -E -e 's/\x01/\\[/g' -e 's/\x02/\\]/g')"
+        export PS1="$CONTR_PS1_BUSYBOX"
+        export CONTR_PS1_BUSYBOX
+    fi
 fi
 # Substitute PS1= with __PS1= in these files so our value is not overwritten
 # Needed for Debian- and Ubuntu-based images
