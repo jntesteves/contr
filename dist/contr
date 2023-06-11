@@ -1,19 +1,16 @@
 #!/usr/bin/env sh
 # SPDX-License-Identifier: Unlicense
-VERSION='0.3.1'
+VERSION='0.4.0'
 CMD="$(basename "$0")"
 PWD=$(pwd)
 USER_ID=$(id -u)
 [ -d "/run/user/$USER_ID" ] && [ -w "/run/user/$USER_ID" ] && XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$USER_ID}"
 config_dir="$CONTR_CONFIG_DIR"
-state_dir="$CONTR_STATE_DIR"
-environment_file="$CONTR_ENVIRONMENT_FILE"
-options_file="$CONTR_OPTIONS_FILE"
-profile_file="$CONTR_PROFILE_FILE"
-is_debug="$CONTR_DEBUG"
+runtime_dir="$CONTR_RUNTIME_DIR"
+is_debug="${CONTR_DEBUG:+1}"
 
 print_help_text() {
-    podman_options=${1-"  -*                     Any option for the podman-run command. Run '$CMD --help-all' for a full list of options"}
+    podman_options=${1-"  -*                       Any option for the podman-run command. Run '$CMD --help-all' for a full list of options"}
     podman_options=${podman_options:-'  Failed to get Podman options, check if Podman is installed correctly'}
 
     cat <<EOF
@@ -21,27 +18,32 @@ contr $VERSION
 Run container exposing the current working directory
 
 Usage:
-  $CMD [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
+  $CMD [OPTION...] [--] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
   $CMD --make-config[=IMAGE]
 
 Options:
-  --make-config[=IMAGE]  Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
-  -n                     Allow network access
-  --pio                  Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
-  --plain                Do not override the image's entrypoint script
-  --pure                 Ignore all configuration files and custom entrypoint
-  --help                 Print this help text and exit
-  --help-all             Print this help text with all options to podman-run included and exit
+  --make-config[=IMAGE]    Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
+  --cwd-mode=(0|4|5|6|7),
+  --cwd-mode={ro,rw,exec}  The permission mode for mounting the current working directory inside the container. If set to 0, CWD will not be mounted inside the container. Numbers 4-7 have the same meanings as in chmod's octal values. Short flags exist for the octal form, as follows:
+  -0                       Do not mount the current working directory inside the container '--cwd-mode=0'
+  -4                       Mount the current working directory with read-only permissions '--cwd-mode=ro'
+  -5                       Mount the current working directory with read and execute permissions '--cwd-mode=ro,exec'
+  -6                       Mount the current working directory with read and write permissions '--cwd-mode=rw'
+  -7                       Mount the current working directory with read, write and execute permissions (default) '--cwd-mode=rw,exec'
+  -n                       Allow network access
+  --pio                    Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
+  --plain                  Do not override the image's entrypoint script
+  --pure                   Ignore all configuration files and custom entrypoint
+  --help                   Print this help text and exit
+  --help-all               Print this help text with all options to podman-run included and exit
 
 Podman options:
 $podman_options
 
 Environment variables:
-  CONTR_CONFIG_DIR        Configuration directory. Defaults to \$XDG_CONFIG_HOME/contr or ~/.config/contr
-  CONTR_ENVIRONMENT_FILE  Path to environment file. Defaults to \$CONTR_CONFIG_DIR/environment
-  CONTR_OPTIONS_FILE      Path to options file. Defaults to \$CONTR_CONFIG_DIR/options
-  CONTR_PROFILE_FILE      Path to profile file. Defaults to \$CONTR_CONFIG_DIR/profile
-  CONTR_STATE_DIR         State directory. Defaults to \$XDG_STATE_HOME/contr or ~/.local/state/contr
+  CONTR_CONFIG_DIR   Configuration directory. Defaults to \$XDG_CONFIG_HOME/contr or ~/.config/contr
+  CONTR_RUNTIME_DIR  Runtime directory. Defaults to \$XDG_RUNTIME_DIR/contr or /run/user/\$UID/contr or /tmp/contr
+  CONTR_DEBUG        Debug flags
 
 Examples:
   $CMD alpine
@@ -54,19 +56,19 @@ EOF
 
 log_error() { printf '%s\n' "$*" >&2; }
 log_info() { printf '%s\n' "$*"; }
-log_debug() { [ "$is_debug" ] && printf '%s\n' "DEBUG $*"; }
+log_debug() { [ "$is_debug" ] && printf 'DEBUG %s\n' "$*"; }
 abort() {
     log_error "$*"
     exit 1
 }
+missing_opt_arg() { abort "Missing argument for option $*. Run $CMD --help"; }
 
 # Remove tag from a container image's name/URI
 remove_tag() {
-    if printf '%s' "$1" | grep -Eq ':[^/]+$' -; then
-        printf '%s' "${1%:*}"
-    else
-        printf '%s' "$1"
-    fi
+    case "${1##*:}" in              # Get the last component
+        */*) printf '%s' "$1" ;;    # If there are slashes, it is not a tag
+        *) printf '%s' "${1%:*}" ;; # Otherwise, remove the last component
+    esac
 }
 
 # Sanitize string for use in filename. Replaces / and : with _
@@ -121,7 +123,7 @@ read_arguments() {
         last_flag=
         for arg in "$@"; do
             case "$arg" in
-                -n | --net | --net=* | --network | --network=*) block_network= ;;
+                -n | -n[04567] | -[04567]n | --net | --net=* | --network | --network=*) block_network= ;;
             esac
             case "$arg" in
                 -*) last_flag="$arg" ;;
@@ -162,30 +164,26 @@ set_config_files() {
     [ "$config_dir" ] || config_dir="${XDG_CONFIG_HOME:-"$HOME/.config"}/contr"
     log_debug "set_config_files() config_dir='$config_dir'"
 
-    [ "$state_dir" ] || state_dir="${XDG_STATE_HOME:-"$HOME/.local/state"}/contr"
-    log_debug "set_config_files() state_dir='$state_dir'"
+    [ "$runtime_dir" ] || runtime_dir="${XDG_RUNTIME_DIR:-/tmp}/contr"
+    log_debug "set_config_files() runtime_dir='$runtime_dir'"
 
-    entrypoint_file="$state_dir/entrypoint"
+    entrypoint_file="$runtime_dir/entrypoint"
     log_debug "set_config_files() entrypoint_file='$entrypoint_file'"
 
-    [ "$environment_file" ] || environment_file="$config_dir/environment"
+    environment_file="$config_dir/environment"
     log_debug "set_config_files() environment_file='$environment_file'"
     [ ! -r "$environment_file" ] && environment_file= &&
         log_debug "set_config_files() environment_file unreadable"
 
-    [ "$options_file" ] || options_file="$config_dir/options"
+    options_file="$config_dir/options"
     log_debug "set_config_files() options_file='$options_file'"
     [ ! -r "$options_file" ] && options_file= &&
         log_debug "set_config_files() options_file unreadable"
 
-    [ "$profile_file" ] || profile_file="$config_dir/profile"
+    profile_file="$config_dir/profile"
     log_debug "set_config_files() profile_file='$profile_file'"
     [ ! -r "$profile_file" ] && profile_file= &&
         log_debug "set_config_files() profile_file unreadable"
-
-    runtime_dir="${XDG_RUNTIME_DIR:-/tmp}/contr"
-    runtime_cache_dir="${runtime_dir}/cache"
-    log_debug "set_config_files() runtime_cache_dir='$runtime_cache_dir'"
 
     per_image_config_dir=
     per_image_environment_file=
@@ -348,10 +346,11 @@ write_entrypoint_file() {
 # file to setup your custom environment.
 #
 SCRIPT_NAME="$(basename "$(realpath "$0")")"
+is_debug="${CONTR_DEBUG:+1}"
 
 log_error() { printf '%s\n' "$*" >&2; }
 log_info() { printf '%s\n' "$*"; }
-log_debug() { [ "$CONTR_DEBUG" ] && printf '%s\n' "DEBUG entrypoint $*"; }
+log_debug() { [ "$is_debug" ] && printf 'DEBUG entrypoint %s\n' "$*"; }
 abort() {
     log_error "Error on entrypoint script: $*"
     exit 1
@@ -360,24 +359,36 @@ abort() {
 [ ! -f /run/.containerenv ] && [ ! -f /.dockerenv ] &&
     abort "It seems we are not in a container. $SCRIPT_NAME is meant to run inside a container."
 
-if [ "$PS1" != "$CONTR_PS1" ]; then
-    log_debug '[ "PS1" != "CONTR_PS1" ]'
-    export PS1="$CONTR_PS1"
+if [ "$CONTR_PS1" ]; then
+    if [ "$PS1" != "$CONTR_PS1" ]; then
+        log_debug '[ "PS1" != "CONTR_PS1" ]'
+        export PS1="$CONTR_PS1"
+    fi
+    which_sh="$(basename "$(realpath "$(command -v sh)")")"
+    if [ "$which_sh" = busybox ]; then
+        log_debug 'Detected busybox, changing value of PS1'
+        # Replace all occurrences of control characters 0x01 and 0x02 with textual escapes \[ and \]
+        CONTR_PS1_BUSYBOX="$(printf '%s' "$CONTR_PS1" | sed -E -e 's/\x01/\\[/g' -e 's/\x02/\\]/g')"
+        export PS1="$CONTR_PS1_BUSYBOX"
+        export CONTR_PS1_BUSYBOX
+    fi
 fi
 # Substitute PS1= with __PS1= in these files so our value is not overwritten
 # Needed for Debian- and Ubuntu-based images
 [ -w /etc/bash.bashrc ] && sed -Ei '/^\s*PS1=/s/PS1=/__&/' /etc/bash.bashrc /etc/profile /root/.bashrc /root/.profile 2>/dev/null
 
 # Link to files in /root from HOME
-for file in /root/.* /root/*; do
-    case "$file" in
-        '/root/.' | '/root/..' | '/root/*') ;;
-        *)
-            log_debug "ln -s $file $HOME"
-            ln -s "$file" "$HOME"
-            ;;
-    esac
-done
+if [ "$HOME" != /root ]; then
+    for file in /root/.* /root/*; do
+        case "$file" in
+            '/root/.' | '/root/..' | '/root/.*' | '/root/*') ;;
+            *)
+                log_debug "ln -s $file $HOME"
+                ln -s "$file" "$HOME"
+                ;;
+        esac
+    done
+fi
 
 # If HOME is in /var/home or similar, add a link to it in /home
 case "$HOME" in
@@ -387,28 +398,16 @@ case "$HOME" in
         ;;
 esac
 
-[ "$CONTR_DEBUG" ] || _dbg='#'
-export ENV="$HOME"/.profile
+[ "$is_debug" ] && _dbg= || _dbg='#'
+export ENV="${HOME}/.profile"
 
 write_profile_files() {
     for p in .bashrc .cshrc .kshrc .profile .zshrc; do
         printf "\\n%s printf '~/%s sourcing %s=%s\\\\n'\\n. '%s'\\n" "$_dbg" "$p" "$1" "$2" "$2" >>"${HOME}/$p"
     done
 }
-
-if [ -f "$CONTR_PROFILE_1" ]; then
-    write_profile_files CONTR_PROFILE_1 "$CONTR_PROFILE_1"
-    log_debug "sourcing CONTR_PROFILE_1=$CONTR_PROFILE_1"
-    # shellcheck source=/dev/null
-    . "$CONTR_PROFILE_1"
-fi
-
-if [ -f "$CONTR_PROFILE_2" ]; then
-    write_profile_files CONTR_PROFILE_2 "$CONTR_PROFILE_2"
-    log_debug "sourcing CONTR_PROFILE_2=$CONTR_PROFILE_2"
-    # shellcheck source=/dev/null
-    . "$CONTR_PROFILE_2"
-fi
+[ -f "$CONTR_PROFILE_1" ] && write_profile_files CONTR_PROFILE_1 "$CONTR_PROFILE_1"
+[ -f "$CONTR_PROFILE_2" ] && write_profile_files CONTR_PROFILE_2 "$CONTR_PROFILE_2"
 
 log_debug "\$*=$*"
 if command -v "$1" >/dev/null; then
@@ -437,11 +436,25 @@ EOF_ENTRYPOINT_FILE
     chmod +x "$1"
 }
 
+set_cwd_mode() {
+    case "$1" in
+        0) cwd_mode= ;;
+        4) cwd_mode=ro ;;
+        5) cwd_mode=ro,exec ;;
+        6) cwd_mode=rw ;;
+        7) cwd_mode=rw,exec ;;
+        *) cwd_mode="$1" ;;
+    esac
+    log_debug "set_cwd_mode() cwd_mode=$cwd_mode"
+}
+
 main() {
     read_arguments "$@"
     check_dependencies cat grep mkdir tr
     set_config_files
     user_home="$HOME"
+    volume_home=1
+    cwd_mode='rw,exec'
 
     if [ "$action" = 'make-config' ]; then
         write_config_files "$config_dir"
@@ -453,27 +466,33 @@ main() {
 
     # From here on we assume the default action = 'podman-run'
     check_dependencies cat chmod grep mkdir podman tr
-    [ "$HOME" = "$PWD" ] && abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
 
     # Read options from command line
     while :; do
+        log_debug "main() option '$1'"
         case "$1" in
             -n) ;;
+            --cwd-mode | --cwd-mode=) missing_opt_arg "$1" ;;
+            --cwd-mode=*)
+                set_cwd_mode "${1#'--cwd-mode='}"
+                ;;
+            -[04567] | -n[04567] | -[04567]n)
+                opt="${1%n}"
+                pad="${opt%?}"
+                set_cwd_mode "${opt#"$pad"}"
+                ;;
             --pio)
-                log_debug "main() --pio"
                 [ "$per_image_environment_file" ] && environment_file=
                 [ "$per_image_options_file" ] && options_file=
                 [ "$per_image_profile_file" ] && profile_file=
                 ;;
             --plain)
-                log_debug "main() --plain"
                 user_home=
                 entrypoint_file=
                 profile_file=
                 per_image_profile_file=
                 ;;
             --pure)
-                log_debug "main() --pure"
                 user_home=
                 entrypoint_file=
                 environment_file=
@@ -483,12 +502,15 @@ main() {
                 per_image_options_file=
                 per_image_profile_file=
                 ;;
+            --) shift && break ;;
             *) break ;;
         esac
         shift                                # Remove option from arguments list
         image_arg_pos=$((image_arg_pos - 1)) # Decrement image position in arguments list
     done
     log_debug "main() \$*=$*"
+    [ ! "$cwd_mode" ] && [ ! "$user_home" ] && volume_home=
+    [ "$cwd_mode" ] && [ "$HOME" = "$PWD" ] && abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
 
     # Read podman options from file
     if [ "$options_file" ]; then
@@ -573,7 +595,8 @@ main() {
     CONTR_PS1=
     if [ -t 0 ]; then
         is_tty=1
-        CONTR_PS1="$(printf '\n\001\033[1;36m\002\w\001\033[m\002 inside \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "${image:-contr}")"
+        xterm_title=$(printf '\001\033]2;\w — contr ⬢ %s\a\002' "$image")
+        CONTR_PS1="$(printf '%s\n\001\033[1;36m\002\w\001\033[m\002 inside \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "$xterm_title" "$image")"
     fi
 
     exec podman run -i ${is_tty:+-t} --rm \
@@ -581,22 +604,21 @@ main() {
         --security-opt=label=disable \
         --group-add=keep-groups \
         --user="0:0" \
-        --volume="$HOME" \
-        --volume="${PWD}:${PWD}:rw,exec" \
-        --workdir="$PWD" \
         --env=CONTR_DEBUG \
+        ${volume_home:+"--volume=$HOME"} \
+        ${cwd_mode:+"--volume=${PWD}:${PWD}:$cwd_mode" "--workdir=$PWD"} \
         ${CONTR_PS1:+"--env=PS1=$CONTR_PS1" "--env=CONTR_PS1=$CONTR_PS1"} \
         ${block_network:+"--network=none"} \
         ${user_home:+"--env=HOME=$user_home"} \
         ${environment_file:+"--env-file=$environment_file"} \
         ${per_image_environment_file:+"--env-file=$per_image_environment_file"} \
-        ${entrypoint_file:+"--volume=${entrypoint_file}:${entrypoint_file}:ro,exec"} \
-        ${entrypoint_file:+"--entrypoint=$entrypoint_file"} \
+        ${entrypoint_file:+"--volume=${entrypoint_file}:/run/contr/entrypoint:ro,exec"} \
+        ${entrypoint_file:+"--entrypoint=/run/contr/entrypoint"} \
         ${entrypoint_file:+"--env=CONTR_IMAGE=$image"} \
-        ${profile_file:+"--volume=${profile_file}:${profile_file}:ro,noexec"} \
-        ${profile_file:+"--env=CONTR_PROFILE_1=${profile_file}"} \
-        ${per_image_profile_file:+"--volume=${per_image_profile_file}:${per_image_profile_file}:ro,noexec"} \
-        ${per_image_profile_file:+"--env=CONTR_PROFILE_2=${per_image_profile_file}"} \
+        ${profile_file:+"--volume=${profile_file}:/run/contr/profile1:ro,noexec"} \
+        ${profile_file:+"--env=CONTR_PROFILE_1=/run/contr/profile1"} \
+        ${per_image_profile_file:+"--volume=${per_image_profile_file}:/run/contr/profile2:ro,noexec"} \
+        ${per_image_profile_file:+"--env=CONTR_PROFILE_2=/run/contr/profile2"} \
         "$@"
 }
 

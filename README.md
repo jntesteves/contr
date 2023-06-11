@@ -28,31 +28,36 @@ For running CLI/TUI programs with limited access to your data, compiling and tes
 
 ## Usage
 ```
-contr 0.3.1
+contr 0.4.0
 Run container exposing the current working directory
 
 Usage:
-  contr [OPTION...] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
+  contr [OPTION...] [--] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
   contr --make-config[=IMAGE]
 
 Options:
-  --make-config[=IMAGE]  Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
-  -n                     Allow network access
-  --pio                  Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
-  --plain                Do not override the image's entrypoint script
-  --pure                 Ignore all configuration files and custom entrypoint
-  --help                 Print this help text and exit
-  --help-all             Print this help text with all options to podman-run included and exit
+  --make-config[=IMAGE]    Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
+  --cwd-mode=(0|4|5|6|7),
+  --cwd-mode={ro,rw,exec}  The permission mode for mounting the current working directory inside the container. If set to 0, CWD will not be mounted inside the container. Numbers 4-7 have the same meanings as in chmod's octal values. Short flags exist for the octal form, as follows:
+  -0                       Do not mount the current working directory inside the container '--cwd-mode=0'
+  -4                       Mount the current working directory with read-only permissions '--cwd-mode=ro'
+  -5                       Mount the current working directory with read and execute permissions '--cwd-mode=ro,exec'
+  -6                       Mount the current working directory with read and write permissions '--cwd-mode=rw'
+  -7                       Mount the current working directory with read, write and execute permissions (default) '--cwd-mode=rw,exec'
+  -n                       Allow network access
+  --pio                    Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
+  --plain                  Do not override the image's entrypoint script
+  --pure                   Ignore all configuration files and custom entrypoint
+  --help                   Print this help text and exit
+  --help-all               Print this help text with all options to podman-run included and exit
 
 Podman options:
-  -*                     Any option for the podman-run command. Run 'contr --help-all' for a full list of options
+  -*                       Any option for the podman-run command. Run 'contr --help-all' for a full list of options
 
 Environment variables:
-  CONTR_CONFIG_DIR        Configuration directory. Defaults to $XDG_CONFIG_HOME/contr or ~/.config/contr
-  CONTR_ENVIRONMENT_FILE  Path to environment file. Defaults to $CONTR_CONFIG_DIR/environment
-  CONTR_OPTIONS_FILE      Path to options file. Defaults to $CONTR_CONFIG_DIR/options
-  CONTR_PROFILE_FILE      Path to profile file. Defaults to $CONTR_CONFIG_DIR/profile
-  CONTR_STATE_DIR         State directory. Defaults to $XDG_STATE_HOME/contr or ~/.local/state/contr
+  CONTR_CONFIG_DIR   Configuration directory. Defaults to $XDG_CONFIG_HOME/contr or ~/.config/contr
+  CONTR_RUNTIME_DIR  Runtime directory. Defaults to $XDG_RUNTIME_DIR/contr or /run/user/$UID/contr or /tmp/contr
+  CONTR_DEBUG        Debug flags
 
 Examples:
   contr alpine
