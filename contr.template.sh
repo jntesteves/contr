@@ -23,7 +23,7 @@ Usage:
 
 Options:
   --make-config[=IMAGE]    Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
-  --cwd-mode=(0 | 4 | 5 | 6 | 7),
+  --cwd-mode=(0|4|5|6|7),
   --cwd-mode={ro,rw,exec}  The permission mode for mounting the current working directory inside the container. If set to 0, CWD will not be mounted inside the container. Numbers 4-7 have the same meanings as in chmod's octal values. Short flags exist for the octal form, as follows:
   -0                       Do not mount the current working directory inside the container '--cwd-mode=0'
   -4                       Mount the current working directory with read-only permissions '--cwd-mode=ro'
@@ -384,7 +384,7 @@ main() {
         log_debug "main() option '$1'"
         case "$1" in
             -n) ;;
-            --cwd-mode) missing_opt_arg '--cwd-mode' ;;
+            --cwd-mode | --cwd-mode=) missing_opt_arg "$1" ;;
             --cwd-mode=*)
                 set_cwd_mode "${1#'--cwd-mode='}"
                 ;;
