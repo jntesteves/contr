@@ -516,6 +516,7 @@ main() {
         --security-opt=label=disable \
         --group-add=keep-groups \
         --user="0:0" \
+        --pull=newer \
         --env=CONTR_DEBUG \
         ${volume_home:+"--volume=$HOME"} \
         ${cwd_mode:+"--volume=${PWD}:${PWD}:$cwd_mode" "--workdir=$PWD"} \

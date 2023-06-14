@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # SPDX-License-Identifier: Unlicense
-version=0.4.0
+version=0.5.0-pre
 app_name=contr
 build_dir=dist
 PREFIX=~/.local

@@ -66,6 +66,14 @@ Examples:
   contr -n amazon/aws-cli aws --version
 ```
 
+## Main behavioral changes from Podman
+
+* Current working directory is mounted by default. **Override**: `-0`
+* Network access is blocked by default. **Override**: `-n`
+* Volumes are `noexec` by default. **Override**: `:exec`
+* The latest image is pulled from the server on launch. **Override**: `--pull=never`
+* The image's entrypoint script is replaced with contr's. **Override**: `--plain`
+
 ## Dependencies
 contr depends on Podman and a POSIX-compatible shell with core utilities for operation.
 

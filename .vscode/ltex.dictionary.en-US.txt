@@ -5,6 +5,7 @@ contr
 cshrc
 Distrobox
 dockerenv
+entrypoint
 esac
 filesystem
 ifdef
