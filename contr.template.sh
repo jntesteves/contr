@@ -482,7 +482,7 @@ main() {
         if [ "$i" -lt "$image_arg_pos" ]; then
             log_debug "${i}: $opt"
             case "$opt" in
-                --volume=*)
+                -v=* | --volume=*)
                     opt=$(make_volume_noexec "$opt")
                     log_debug "${i}: $opt"
                     ;;
