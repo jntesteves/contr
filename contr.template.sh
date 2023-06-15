@@ -455,19 +455,19 @@ main() {
     # Add noexec option to a volume definition unless an exec mode is explicitly set
     make_volume_noexec() {
         case "$1" in
-            *:*) ;;
+            *:*)
+                volume_opts="${1##*:}"
+                case "$volume_opts" in
+                    */*) printf '%s' "${1}:noexec" ;; # Slashes mean the last component is a path, there are no options
+                    *exec*) printf '%s' "$1" ;;       # exec/noexec already present, don't change anything
+                    *) printf '%s' "${1},noexec" ;;   # Add noexec to options list
+                esac
+                ;;
             *)
                 # If there are no colons we do nothing as this is an anonymous volume, which
                 # does not accept options, and in our case (podman-run --rm) is transient anyway
                 printf '%s' "$1"
-                exit
                 ;;
-        esac
-        volume_opts="${1##*:}"
-        case "$volume_opts" in
-            */*) printf '%s' "${1}:noexec" ;; # Slashes mean the last component is a path, there are no options
-            *exec*) printf '%s' "$1" ;;       # exec/noexec already present, don't change anything
-            *) printf '%s' "${1},noexec" ;;   # Add noexec to options list
         esac
     }
 
