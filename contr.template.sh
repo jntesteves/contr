@@ -47,9 +47,9 @@ Environment variables:
 
 Examples:
   $CMD alpine
-  $CMD -n node:alpine sh
   $CMD --make-config=amazon/aws-cli
   $CMD -n amazon/aws-cli aws --version
+  $CMD -n -p 3000 node:alpine npm run dev -- --host 0.0.0.0
 EOF
     exit
 }
@@ -452,6 +452,36 @@ main() {
         log_debug "main() \$*=$*"
     fi
 
+    # Add 127.0.0.1 as bind address to published ports unless an address is explicitly set
+    # For ports above 1023, bind container ports to the same port number on the host if not specified
+    make_publish_local_only() {
+        opt_arg="${1#'--publish='}"
+        opt_arg="${opt_arg#'-p='}"
+        opt_flag= && [ "$opt_arg" != "$1" ] && opt_flag='--publish='
+
+        print_arg() {
+            if [ "$2" -gt 1023 ]; then
+                printf '%s%s:%s:%s' "$opt_flag" "$1" "${3:-"$2"}" "$2"
+            else
+                printf '%s%s:%s:%s' "$opt_flag" "$1" "${3:-}" "$2"
+            fi
+        }
+        case "$1" in
+            *.*.*.*::*) # arg is an IP address and a container port
+                container_port="${opt_arg##*:}"
+                ip_address="${opt_arg%%::*}"
+                print_arg "$ip_address" "$container_port"
+                ;;
+            *.*.*.*:*:*) printf '%s' "$1" ;; # arg is an IP address and a pair of host:container ports, ignore
+            *:*)                             # arg is a pair of host:container ports
+                container_port="${opt_arg##*:}"
+                host_port="${opt_arg%%:*}"
+                print_arg '127.0.0.1' "$container_port" "$host_port"
+                ;;
+            *) print_arg '127.0.0.1' "$opt_arg" ;; # If there are no colons, arg is only a container port number
+        esac
+    }
+
     # Add noexec option to a volume definition unless an exec mode is explicitly set
     make_volume_noexec() {
         case "$1" in
@@ -471,7 +501,7 @@ main() {
         esac
     }
 
-    # Change all volume arguments to include option noexec by default, unless exec is explicitly set
+    # Change Podman options arguments to override Podman's defaults with ours
     log_debug "main() image_arg_pos=$image_arg_pos"
     argc="$#"
     i=1
@@ -482,6 +512,17 @@ main() {
         if [ "$i" -lt "$image_arg_pos" ]; then
             log_debug "${i}: $opt"
             case "$opt" in
+                -p=* | --publish=*)
+                    opt=$(make_publish_local_only "$opt")
+                    log_debug "${i}: $opt"
+                    ;;
+                -p | --publish)
+                    shifts=2
+                    opt_arg=$(make_publish_local_only "$2")
+                    opt_arg_pos=$((i + 1))
+                    log_debug "${opt_arg_pos}: $2"
+                    log_debug "${opt_arg_pos}: $opt_arg"
+                    ;;
                 -v=* | --volume=*)
                     opt=$(make_volume_noexec "$opt")
                     log_debug "${i}: $opt"

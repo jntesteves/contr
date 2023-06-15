@@ -71,6 +71,8 @@ Examples:
 * Current working directory is mounted by default. **Override**: `-0`
 * Network access is blocked by default. **Override**: `-n`
 * Volumes are `noexec` by default. **Override**: `:exec`
+* Published ports are only bound to localhost by default. **Override**: `-p 0.0.0.0::PORT`
+* When the host port is not specified, ports above 1023 are published to the same port number on the host, instead of a random port.
 * The latest image is pulled from the server on launch. **Override**: `--pull=never`
 * The image's entrypoint script is replaced with contr's. **Override**: `--plain`
 
