@@ -360,13 +360,72 @@ set_cwd_mode() {
     log_debug "set_cwd_mode() cwd_mode=$cwd_mode"
 }
 
+# Add 127.0.0.1 as bind address to published ports unless an address is explicitly set
+# For ports above 1023, bind container ports to the same port number on the host if not specified
+make_publish_local_only() {
+    opt_arg="${1#'--publish='}"
+    opt_arg="${opt_arg#'-p='}"
+    opt_flag= && [ "$opt_arg" != "$1" ] && opt_flag='--publish='
+
+    print_arg() {
+        if [ "$2" -gt 1023 ]; then
+            printf '%s%s:%s:%s' "$opt_flag" "$1" "${3:-"$2"}" "$2"
+        else
+            printf '%s%s:%s:%s' "$opt_flag" "$1" "${3:-}" "$2"
+        fi
+    }
+    case "$1" in
+        *.*.*.*::*) # arg is an IP address and a container port
+            container_port="${opt_arg##*:}"
+            ip_address="${opt_arg%%::*}"
+            print_arg "$ip_address" "$container_port"
+            ;;
+        *.*.*.*:*:*) printf '%s' "$1" ;; # arg is an IP address and a pair of host:container ports, ignore
+        *:*)                             # arg is a pair of host:container ports
+            container_port="${opt_arg##*:}"
+            host_port="${opt_arg%%:*}"
+            print_arg '127.0.0.1' "$container_port" "$host_port"
+            ;;
+        *) print_arg '127.0.0.1' "$opt_arg" ;; # If there are no colons, arg is only a container port number
+    esac
+}
+
+# Add noexec option to a volume definition unless an exec mode is explicitly set
+make_volume_noexec() {
+    case "$1" in
+        *:*)
+            volume_opts="${1##*:}"
+            case "$volume_opts" in
+                */*) printf '%s' "${1}:noexec" ;; # Slashes mean the last component is a path, there are no options
+                *exec*) printf '%s' "$1" ;;       # exec/noexec already present, don't change anything
+                *) printf '%s' "${1},noexec" ;;   # Add noexec to options list
+            esac
+            ;;
+        *)
+            # If there are no colons we do nothing as this is an anonymous volume, which
+            # does not accept options, and in our case (podman-run --rm) is transient anyway
+            printf '%s' "$1"
+            ;;
+    esac
+}
+
+initialize_run_variables() {
+    user_home="$HOME"
+    volume_home=1
+    cwd_mode='rw,exec'
+    is_tty=
+    CONTR_PS1=
+    if [ -t 0 ]; then
+        is_tty=1
+        xterm_title=$(printf '\001\033]2;\w — contr ⬢ %s\a\002' "$image")
+        CONTR_PS1="$(printf '%s\n\001\033[1;36m\002\w\001\033[m\002 inside \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "$xterm_title" "$image")"
+    fi
+}
+
 main() {
     read_arguments "$@"
     check_dependencies cat grep mkdir tr
     set_config_files
-    user_home="$HOME"
-    volume_home=1
-    cwd_mode='rw,exec'
 
     if [ "$action" = 'make-config' ]; then
         write_config_files "$config_dir"
@@ -378,6 +437,7 @@ main() {
 
     # From here on we assume the default action = 'podman-run'
     check_dependencies cat chmod grep mkdir podman tr
+    initialize_run_variables
 
     # Read options from command line
     while :; do
@@ -452,55 +512,6 @@ main() {
         log_debug "main() \$*=$*"
     fi
 
-    # Add 127.0.0.1 as bind address to published ports unless an address is explicitly set
-    # For ports above 1023, bind container ports to the same port number on the host if not specified
-    make_publish_local_only() {
-        opt_arg="${1#'--publish='}"
-        opt_arg="${opt_arg#'-p='}"
-        opt_flag= && [ "$opt_arg" != "$1" ] && opt_flag='--publish='
-
-        print_arg() {
-            if [ "$2" -gt 1023 ]; then
-                printf '%s%s:%s:%s' "$opt_flag" "$1" "${3:-"$2"}" "$2"
-            else
-                printf '%s%s:%s:%s' "$opt_flag" "$1" "${3:-}" "$2"
-            fi
-        }
-        case "$1" in
-            *.*.*.*::*) # arg is an IP address and a container port
-                container_port="${opt_arg##*:}"
-                ip_address="${opt_arg%%::*}"
-                print_arg "$ip_address" "$container_port"
-                ;;
-            *.*.*.*:*:*) printf '%s' "$1" ;; # arg is an IP address and a pair of host:container ports, ignore
-            *:*)                             # arg is a pair of host:container ports
-                container_port="${opt_arg##*:}"
-                host_port="${opt_arg%%:*}"
-                print_arg '127.0.0.1' "$container_port" "$host_port"
-                ;;
-            *) print_arg '127.0.0.1' "$opt_arg" ;; # If there are no colons, arg is only a container port number
-        esac
-    }
-
-    # Add noexec option to a volume definition unless an exec mode is explicitly set
-    make_volume_noexec() {
-        case "$1" in
-            *:*)
-                volume_opts="${1##*:}"
-                case "$volume_opts" in
-                    */*) printf '%s' "${1}:noexec" ;; # Slashes mean the last component is a path, there are no options
-                    *exec*) printf '%s' "$1" ;;       # exec/noexec already present, don't change anything
-                    *) printf '%s' "${1},noexec" ;;   # Add noexec to options list
-                esac
-                ;;
-            *)
-                # If there are no colons we do nothing as this is an anonymous volume, which
-                # does not accept options, and in our case (podman-run --rm) is transient anyway
-                printf '%s' "$1"
-                ;;
-        esac
-    }
-
     # Change Podman options arguments to override Podman's defaults with ours
     log_debug "main() image_arg_pos=$image_arg_pos"
     argc="$#"
@@ -541,16 +552,9 @@ main() {
         i=$((i + shifts))
     done
     log_debug "main() \$*=$*"
-    [ "$argc" = "$#" ] || abort "Error processing volume arguments. We should to have $argc arguments but got $# instead"
+    [ "$argc" = "$#" ] || abort "Error processing arguments. We should have $argc arguments but got $# instead"
 
     [ "$entrypoint_file" ] && write_entrypoint_file "$entrypoint_file"
-    is_tty=
-    CONTR_PS1=
-    if [ -t 0 ]; then
-        is_tty=1
-        xterm_title=$(printf '\001\033]2;\w — contr ⬢ %s\a\002' "$image")
-        CONTR_PS1="$(printf '%s\n\001\033[1;36m\002\w\001\033[m\002 inside \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "$xterm_title" "$image")"
-    fi
 
     exec podman run -i ${is_tty:+-t} --rm \
         --tz=local \
