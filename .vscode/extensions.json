@@ -5,7 +5,8 @@
   "recommendations": [
     "streetsidesoftware.code-spell-checker",
     "editorconfig.editorconfig",
-    "valentjn.vscode-ltex"
+    "valentjn.vscode-ltex",
+    "timonwong.shellcheck"
   ],
   // List of extensions recommended by VS Code that should not be recommended for users of this workspace.
   "unwantedRecommendations": []
