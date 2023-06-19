@@ -282,7 +282,7 @@ EOF_OPTIONS_FILE
 # profile - contr
 # User-specific environment for containers
 #
-# This file is sourced (. command) by the entrypoint shell-script inside the
+# This file is sourced (. command) by the shell's profile/rc file inside the
 # container. Use it to do any complex initialization you may require for a
 # container, that can't be done with the simpler environment file.
 #
