@@ -28,7 +28,7 @@ For running CLI/TUI programs with limited access to your data, compiling and tes
 
 ## Usage
 ```
-contr 0.4.0
+contr 0.5.0
 Run container exposing the current working directory
 
 Usage:
@@ -61,9 +61,9 @@ Environment variables:
 
 Examples:
   contr alpine
-  contr -n node:alpine sh
   contr --make-config=amazon/aws-cli
   contr -n amazon/aws-cli aws --version
+  contr -n -p 3000 node:alpine npm run dev -- --host 0.0.0.0
 ```
 
 ## Main behavioral changes from Podman
