@@ -361,14 +361,14 @@ set_cwd_mode() {
 }
 
 # Add 127.0.0.1 as bind address to published ports unless an address is explicitly set
-# For ports above 1023, bind container ports to the same port number on the host if not specified
+# For ports 1024 and above, bind container ports to the same port number on the host if not specified
 make_publish_local_only() {
     opt_arg="${1#'--publish='}"
     opt_arg="${opt_arg#'-p='}"
     opt_flag= && [ "$opt_arg" != "$1" ] && opt_flag='--publish='
 
     print_arg() {
-        if [ "$2" -gt 1023 ]; then
+        if [ "$2" -ge "${ip_unprivileged_port_start:-0}" ]; then
             printf '%s%s:%s:%s' "$opt_flag" "$1" "${3:-"$2"}" "$2"
         else
             printf '%s%s:%s:%s' "$opt_flag" "$1" "${3:-}" "$2"
@@ -413,6 +413,7 @@ initialize_run_variables() {
     user_home="$HOME"
     volume_home=1
     cwd_mode='rw,exec'
+
     is_tty=
     CONTR_PS1=
     if [ -t 0 ]; then
@@ -420,6 +421,16 @@ initialize_run_variables() {
         xterm_title=$(printf '\001\033]2;\w — contr ⬢ %s\a\002' "$image")
         CONTR_PS1="$(printf '%s\n\001\033[1;36m\002\w\001\033[m\002 inside \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "$xterm_title" "$image")"
     fi
+
+    ip_unprivileged_port_start=1024
+    if [ "$USER_ID" = 0 ]; then
+        # if running as root, ignore 'ip_unprivileged_port_start'
+        ip_unprivileged_port_start=
+    elif command -v sysctl >/dev/null; then
+        ip_unprivileged_port_start="$(sysctl net.ipv4.ip_unprivileged_port_start)" # net.ipv4.ip_unprivileged_port_start = 1024
+        ip_unprivileged_port_start="${ip_unprivileged_port_start##*[!0-9]}"
+    fi
+    log_debug "initialize_run_variables() ip_unprivileged_port_start=$ip_unprivileged_port_start"
 }
 
 main() {
