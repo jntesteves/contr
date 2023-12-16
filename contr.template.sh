@@ -419,7 +419,7 @@ initialize_run_variables() {
     if [ -t 0 ]; then
         is_tty=1
         xterm_title=$(printf '\001\033]2;\w — contr ⬢ %s\a\002' "$image")
-        CONTR_PS1="$(printf '%s\n\001\033[1;36m\002\w\001\033[m\002 inside \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "$xterm_title" "$image")"
+        CONTR_PS1="$(printf '%s\n\001\033[1;36m\002\w\001\033[m\002 — contr \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "$xterm_title" "$image")"
     fi
 
     ip_unprivileged_port_start=1024
