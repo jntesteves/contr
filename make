@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # SPDX-License-Identifier: Unlicense
-version=0.5.0
+version=0.6.0-pre
 app_name=contr
 build_dir=dist
 PREFIX=~/.local
@@ -73,8 +73,8 @@ case "$target" in
     format)
         run shfmt -p -i 4 -ci -w ./*.sh make
         ;;
-    develop-image)
-        run podman build -f Containerfile.develop -t contr-develop
+    dev-image)
+        run podman build -f Containerfile.dev -t contr-dev
         ;;
     *) abort "No rule to make target '$target'" ;;
 esac
