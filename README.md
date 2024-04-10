@@ -14,7 +14,7 @@ Here are some example use-cases of contr:
   * Take Av1an's [docker instructions](https://github.com/master-of-zen/Av1an/blob/master/docs/DOCKER.md) for example. Running the same container under contr is not only safer, but also much simpler: `contr masterofzen/av1an:master av1an --help`  
   Alternatively, you can enter the container with `contr masterofzen/av1an:master`, and then run any commands inside it: `av1an --help`
 * You want to make it easier for your users to configure and build your software. Offer a container image with all build dependencies pre-installed, instead of filling your README file with build instructions for every OS under the sun. You likely already have such an image for CI purposes.
-  * Just commit the Containerfile to the repository and `podman build -t my-dev-image`, and you're ready to use contr!
+  * Just commit the Containerfile to the repository and `podman build -t my-dev-image .`, and you're ready to use contr!
 
 ## Why not use Toolbx/Distrobox instead
 
