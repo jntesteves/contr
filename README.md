@@ -28,7 +28,7 @@ For running CLI/TUI programs with limited access to your data, compiling and tes
 
 ## Usage
 ```
-contr 0.5.0
+contr 0.6.0
 Run container exposing the current working directory
 
 Usage:
