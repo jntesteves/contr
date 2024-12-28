@@ -438,39 +438,60 @@ make_volume_noexec() {
 	esac
 }
 
+get_persistence_volume_specifier_() {
+	mount_specifier_=$1
+	case "$mount_specifier_" in "~" | "~"[/:]*) mount_specifier_="home${mount_specifier_#"~"}" ;; esac
+	case "$mount_specifier_" in
+	*:ro | *:ro,exec | *:ro,noexec | *:exec,ro | *:noexec,ro) return 4 ;;
+	*:exec | *:noexec | *:rw,exec | *:rw,noexec | *:exec,rw | *:noexec,rw) ;;
+	*:r[ow]) mount_specifier_="${mount_specifier_},noexec" ;;
+	*) mount_specifier_="${mount_specifier_}:noexec" ;;
+	esac
+	case "$mount_specifier_" in home | home[/:]*) volume_home= ;; esac
+	mount_point_=$mount_specifier_
+	case "$mount_point_" in
+	home | home[/:]*) mount_point_="${HOME}${mount_point_#home}" ;;
+	/*) ;;
+	*) return 3 ;;
+	esac
+	volume_name_=$(substitute_characters "${mount_specifier_%:*}" '/' '__')
+	volume_name_="contr-persist.$(sanitize_for_fs "$image_name").$(sanitize_for_fs "$volume_name_")"
+	volume_specifier="${volume_name_}:${mount_point_}"
+}
+
 create_persistence_volumes() {
 	persist_label=$(get_label "$image" page.codeberg.contr.persist)
 	outer_ifs=$IFS
 	IFS='	'
-	for mount_point in $persist_label; do
+	for mount_specifier in $persist_label; do
 		IFS=$outer_ifs
-		case "$mount_point" in
-		*:ro | *:ro,exec | *:ro,noexec | *:exec,ro | *:noexec,ro) abort "Error in image's 'page.codeberg.contr.persist' label. Persistent mounts can not be read-only. Incorrect path is '${mount_point}'" ;;
-		*:exec | *:noexec | *:rw,exec | *:rw,noexec | *:exec,rw | *:noexec,rw) ;;
-		*:r[ow]) mount_point="${mount_point},noexec" ;;
-		*) mount_point="${mount_point}:noexec" ;;
-		esac
-		if [ "${mount_point%:*}" = "$HOME" ]; then volume_home=; fi
-		volume_name=$(substitute_characters "${mount_point%:*}" '/' '__')
-		volume_name="contr-persist.$(sanitize_for_fs "$image_name").$(sanitize_for_fs "$volume_name")"
-		persistence_volumes="${persistence_volumes}--volume=${volume_name}:${mount_point}
+		get_persistence_volume_specifier_ "$mount_specifier" && :
+		status=$?
+		if [ "$status" -eq 3 ]; then
+			abort "Error in image's 'page.codeberg.contr.persist' label. Persistent mounts must be absolute paths, or relative to [~ | home]. Incorrect path is '${mount_specifier}'"
+		elif [ "$status" -eq 4 ]; then
+			abort "Error in image's 'page.codeberg.contr.persist' label. Persistent mounts can not be read-only. Incorrect path is '${mount_specifier}'"
+		elif [ "$status" -gt 0 ]; then
+			abort "Unknown error in image's 'page.codeberg.contr.persist' label. Incorrect path is '${mount_specifier}'"
+		fi
+		image_persistence_volumes="${image_persistence_volumes}--volume=${volume_specifier}
 "
 	done
-	log_debug "[create_persistence_volumes] persistence_volumes=[${persistence_volumes}]"
+	log_debug "[create_persistence_volumes] image_persistence_volumes=[${image_persistence_volumes}]"
 }
 
 add_cli_persistence_volume() {
-	mount_point=$1
-	case "$mount_point" in
-	*:ro | *:ro,exec | *:ro,noexec | *:exec,ro | *:noexec,ro) abort "Error in --persist=${mount_point} option. Persistent mounts can not be read-only" ;;
-	*:exec | *:noexec | *:rw,exec | *:rw,noexec | *:exec,rw | *:noexec,rw) ;;
-	*:r[ow]) mount_point="${mount_point},noexec" ;;
-	*) mount_point="${mount_point}:noexec" ;;
-	esac
-	if [ "${mount_point%:*}" = "$HOME" ]; then volume_home=; fi
-	volume_name=$(substitute_characters "${mount_point%:*}" '/' '__')
-	volume_name="contr-persist.$(sanitize_for_fs "$image_name").$(sanitize_for_fs "$volume_name")"
-	cli_persistence_volumes="${cli_persistence_volumes}--volume=${volume_name}:${mount_point}
+	mount_specifier=$1
+	get_persistence_volume_specifier_ "$mount_specifier" && :
+	status=$?
+	if [ "$status" -eq 3 ]; then
+		abort "Error in --persist=${mount_specifier} option. Persistent mounts must be absolute paths, or relative to [~ | home]"
+	elif [ "$status" -eq 4 ]; then
+		abort "Error in --persist=${mount_specifier} option. Persistent mounts can not be read-only"
+	elif [ "$status" -gt 0 ]; then
+		abort "Unknown error in --persist=${mount_specifier} option"
+	fi
+	cli_persistence_volumes="${cli_persistence_volumes}--volume=${volume_specifier}
 "
 }
 
@@ -488,7 +509,7 @@ initialize_run_variables() {
 	user_home="$HOME"
 	volume_home=1
 	cwd_mode='rw,exec'
-	persistence_volumes=
+	image_persistence_volumes=
 	cli_persistence_volumes=
 
 	is_tty=
@@ -538,7 +559,7 @@ main() {
 		--cwd-mode=*)
 			set_cwd_mode "${1#'--cwd-mode='}"
 			;;
-		--no-persist) persistence_volumes= ;;
+		--no-persist) image_persistence_volumes= ;;
 		--persist | --persist=) missing_opt_arg "$1" ;;
 		--persist=*)
 			add_cli_persistence_volume "${1#'--persist='}"
@@ -576,6 +597,7 @@ main() {
 		image_arg_pos=$((image_arg_pos - 1)) # Decrement image position in arguments list
 	done
 	log_debug "main() \$*=$*"
+	log_debug "[add_cli_persistence_volume] cli_persistence_volumes=[${cli_persistence_volumes}]"
 	[ ! "$cwd_mode" ] && [ ! "$user_home" ] && volume_home=
 	[ "$cwd_mode" ] && [ "$HOME" = "$PWD" ] && abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
 
@@ -673,7 +695,7 @@ main() {
 		${profile_file:+"--env=CONTR_PROFILE_1=/run/contr/profile1"} \
 		${per_image_profile_file:+"--volume=${per_image_profile_file}:/run/contr/profile2:ro,noexec"} \
 		${per_image_profile_file:+"--env=CONTR_PROFILE_2=/run/contr/profile2"} \
-		${persistence_volumes} \
+		${image_persistence_volumes} \
 		${cli_persistence_volumes} \
 		"$@"
 }
