@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/bin/sh
 # SPDX-License-Identifier: Unlicense
 # entrypoint - contr
 #

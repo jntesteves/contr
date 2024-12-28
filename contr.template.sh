@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/bin/sh
 # SPDX-License-Identifier: Unlicense
 VERSION='%%VERSION%%'
 CMD="$(basename "$0")"
