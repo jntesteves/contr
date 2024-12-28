@@ -450,7 +450,7 @@ create_persistence_volumes() {
 		esac
 		if [ "${mount_point%:*}" = "$HOME" ]; then volume_home=; fi
 		volume_name=$(substitute_characters "${mount_point%:*}" '/' '__')
-		volume_name="contr-persist__$(sanitize_for_fs "$image_name")__$(sanitize_for_fs "$volume_name")"
+		volume_name="contr-persist.$(sanitize_for_fs "$image_name").$(sanitize_for_fs "$volume_name")"
 		persistence_volumes="${persistence_volumes}--volume=${volume_name}:${mount_point}
 "
 	done
@@ -467,7 +467,7 @@ add_cli_persistence_volume() {
 	esac
 	if [ "${mount_point%:*}" = "$HOME" ]; then volume_home=; fi
 	volume_name=$(substitute_characters "${mount_point%:*}" '/' '__')
-	volume_name="contr-persist__$(sanitize_for_fs "$image_name")__$(sanitize_for_fs "$volume_name")"
+	volume_name="contr-persist.$(sanitize_for_fs "$image_name").$(sanitize_for_fs "$volume_name")"
 	cli_persistence_volumes="${cli_persistence_volumes}--volume=${volume_name}:${mount_point}
 "
 }
