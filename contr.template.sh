@@ -448,6 +448,7 @@ create_persistence_volumes() {
 		*:r[ow]) mount_point="${mount_point},noexec" ;;
 		*) mount_point="${mount_point}:noexec" ;;
 		esac
+		if [ "${mount_point%:*}" = "$HOME" ]; then volume_home=; fi
 		volume_name=$(substitute_characters "${mount_point%:*}" '/' '__')
 		volume_name="contr-persist__$(sanitize_for_fs "$image_name")__$(sanitize_for_fs "$volume_name")"
 		persistence_volumes="${persistence_volumes}--volume=${volume_name}:${mount_point}
@@ -456,11 +457,27 @@ create_persistence_volumes() {
 	log_debug "[create_persistence_volumes] persistence_volumes=[${persistence_volumes}]"
 }
 
+add_cli_persistence_volume() {
+	mount_point=$1
+	case "$mount_point" in
+	*:ro | *:ro,exec | *:ro,noexec | *:exec,ro | *:noexec,ro) abort "Error in --persist=${mount_point} option. Persistent mounts can not be read-only" ;;
+	*:exec | *:noexec | *:rw,exec | *:rw,noexec | *:exec,rw | *:noexec,rw) ;;
+	*:r[ow]) mount_point="${mount_point},noexec" ;;
+	*) mount_point="${mount_point}:noexec" ;;
+	esac
+	if [ "${mount_point%:*}" = "$HOME" ]; then volume_home=; fi
+	volume_name=$(substitute_characters "${mount_point%:*}" '/' '__')
+	volume_name="contr-persist__$(sanitize_for_fs "$image_name")__$(sanitize_for_fs "$volume_name")"
+	cli_persistence_volumes="${cli_persistence_volumes}--volume=${volume_name}:${mount_point}
+"
+}
+
 initialize_run_variables() {
 	user_home="$HOME"
 	volume_home=1
 	cwd_mode='rw,exec'
 	persistence_volumes=
+	cli_persistence_volumes=
 
 	is_tty=
 	CONTR_PS1=
@@ -507,6 +524,10 @@ main() {
 		--cwd-mode | --cwd-mode=) missing_opt_arg "$1" ;;
 		--cwd-mode=*)
 			set_cwd_mode "${1#'--cwd-mode='}"
+			;;
+		--persist | --persist=) missing_opt_arg "$1" ;;
+		--persist=*)
+			add_cli_persistence_volume "${1#'--persist='}"
 			;;
 		-[04567] | -n[04567] | -[04567]n)
 			opt="${1%n}"
@@ -639,6 +660,7 @@ main() {
 		${per_image_profile_file:+"--volume=${per_image_profile_file}:/run/contr/profile2:ro,noexec"} \
 		${per_image_profile_file:+"--env=CONTR_PROFILE_2=/run/contr/profile2"} \
 		${persistence_volumes} \
+		${cli_persistence_volumes} \
 		"$@"
 }
 
