@@ -63,6 +63,26 @@ abort() {
 }
 missing_opt_arg() { abort "Missing argument for option $*. Run $CMD --help"; }
 
+# substitute_characters text pattern [replacement]
+# Substitute every instance of the pattern characters in text with replacement string
+# This function uses only shell builtins and has no external dependencies (f.e. on sed)
+# This is slower than using sed on large inputs, but faster on many invocations with small inputs
+substitute_characters() {
+	case $- in *f*) NS__outer_noglob='-f' ;; *) NS__outer_noglob='+f' ;; esac
+	NS__outer_ifs=$IFS
+	set -f # Disable Pathname Expansion (aka globbing)
+	IFS=$2
+	unset -v NS__last_field
+	for NS__field in ${1}P; do
+		printf '%s' ${NS__last_field+"${NS__last_field}${3}"}
+		NS__last_field=$NS__field
+	done
+	printf '%s' "${NS__last_field%?}"
+	IFS=$NS__outer_ifs
+	set "$NS__outer_noglob"
+	unset -v NS__outer_noglob NS__outer_ifs NS__last_field NS__field
+}
+
 # Remove tag from a container image's name/URI
 remove_tag() {
 	case "${1##*:}" in          # Get the last component
@@ -73,7 +93,7 @@ remove_tag() {
 
 # Sanitize string for use in filename. Replaces / and : with _
 sanitize_for_fs() {
-	printf '%s' "$*" | tr '/:' '_'
+	substitute_characters "$*" '/:' '_'
 }
 
 read_arguments() {
@@ -435,7 +455,7 @@ initialize_run_variables() {
 
 main() {
 	read_arguments "$@"
-	check_dependencies cat grep mkdir tr
+	check_dependencies cat grep mkdir
 	set_config_files
 
 	if [ "$action" = 'make-config' ]; then
@@ -447,7 +467,7 @@ main() {
 	fi
 
 	# From here on we assume the default action = 'podman-run'
-	check_dependencies cat chmod grep mkdir podman tr
+	check_dependencies cat chmod grep mkdir podman
 	initialize_run_variables
 
 	# Read options from command line
