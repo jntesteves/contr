@@ -93,7 +93,7 @@ remove_tag() {
 
 # Sanitize string for use in filename. Replaces / and : with _
 sanitize_for_fs() {
-	substitute_characters "$*" '/:' '_'
+	substitute_characters "$1" '/:' '_'
 }
 
 read_arguments() {
