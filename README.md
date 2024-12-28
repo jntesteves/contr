@@ -28,7 +28,7 @@ For running CLI/TUI programs with limited access to your data, compiling and tes
 
 ## Usage
 ```
-contr 0.6.0
+contr 0.7.0
 Run container exposing the current working directory
 
 Usage:
@@ -45,6 +45,8 @@ Options:
   -6                       Mount the current working directory with read and write permissions '--cwd-mode=rw'
   -7                       Mount the current working directory with read, write and execute permissions (default) '--cwd-mode=rw,exec'
   -n                       Allow network access
+  --no-persist             Override "page.codeberg.contr.persist" label from image, canceling its mount points
+  --persist=PATH[:exec]    Create a mount point at PATH to persist its data across invocations. PATH must be absolute or relative to [~ | home]
   --pio                    Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
   --plain                  Do not override the image's entrypoint script
   --pure                   Ignore all configuration files and custom entrypoint
