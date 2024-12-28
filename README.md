@@ -73,7 +73,6 @@ Examples:
 * Volumes are `:noexec` by default. **Override**: `:exec`
 * Published ports are only bound to localhost by default. **Override**: `-p 0.0.0.0::PORT`
 * When the host port is not specified, ports 1024 and above are published to the same port number on the host, instead of a random port.
-* The latest image is pulled from the server on launch. **Override**: `--pull=missing`
 * The image's entrypoint script is replaced with contr's. **Override**: `--plain`
 
 ## Image features

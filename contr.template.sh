@@ -474,6 +474,16 @@ add_cli_persistence_volume() {
 "
 }
 
+pull_image_if_missing() {
+	podman image exists "$image" && :
+	status=$?
+	if [ "$status" -eq 125 ]; then
+		abort "Podman error trying to access local image storage. podman-image-exists returned code 125"
+	elif [ "$status" -ne 0 ]; then
+		podman image pull "$image" || abort "Image '${image}' does not exist and Podman failed to pull a new image"
+	fi
+}
+
 initialize_run_variables() {
 	user_home="$HOME"
 	volume_home=1
@@ -516,6 +526,7 @@ main() {
 	# From here on we assume the default action = 'podman-run'
 	check_dependencies cat chmod grep mkdir podman
 	initialize_run_variables
+	pull_image_if_missing
 	create_persistence_volumes
 
 	# Read options from command line
@@ -646,7 +657,7 @@ main() {
 		--security-opt=label=disable \
 		--group-add=keep-groups \
 		--user="0:0" \
-		--pull=newer \
+		--pull=never \
 		--env=CONTR_DEBUG \
 		${volume_home:+"--volume=$HOME"} \
 		${cwd_mode:+"--volume=${PWD}:${PWD}:$cwd_mode" "--workdir=$PWD"} \
