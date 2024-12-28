@@ -31,6 +31,7 @@ Options:
   -6                       Mount the current working directory with read and write permissions '--cwd-mode=rw'
   -7                       Mount the current working directory with read, write and execute permissions (default) '--cwd-mode=rw,exec'
   -n                       Allow network access
+  --persist=PATH[:exec]    Create a mount point at PATH to persist its data across invocations
   --pio                    Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
   --plain                  Do not override the image's entrypoint script
   --pure                   Ignore all configuration files and custom entrypoint
