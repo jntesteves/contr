@@ -76,6 +76,24 @@ Examples:
 * The latest image is pulled from the server on launch. **Override**: `--pull=never`
 * The image's entrypoint script is replaced with contr's. **Override**: `--plain`
 
+## Image features
+
+Images can use labels to configure contr. All contr options are under the `page.codeberg.contr` namespace.
+
+### Persistence
+
+Images can use the `page.codeberg.contr.persist` label to declare paths to be automatically mounted to a volume to be persisted between runs. This can be used to persist program configuration or state, user data, cache, etc. Just like all other volumes in contr, these mounts are `:noexec` by default, so you must explicitly use the `:exec` mount option in those cases where you want to allow code execution from the mount.
+
+```shell
+# Format
+LABEL page.codeberg.contr.persist="/mount-point[:exec] [{tab}/mount-point[:exec]...]"
+
+# For example, a flatpak-builder image can use the following label to persist
+# the Flatpak sdks and runtimes between different builds, to avoid wasting
+# Internet bandwidth downloading these every time it is used
+LABEL page.codeberg.contr.persist="/var/lib/flatpak:exec"
+```
+
 ## Dependencies
 contr depends on Podman and a POSIX-compatible shell with core utilities for operation.
 

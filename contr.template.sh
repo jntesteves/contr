@@ -96,6 +96,12 @@ sanitize_for_fs() {
 	substitute_characters "$1" '/:' '_'
 }
 
+# get_label IMAGE LABEL
+# Print the value of a Label from a container image
+get_label() {
+	podman image inspect --format "{{index .Config.Labels \"${2}\"}}" "$1"
+}
+
 read_arguments() {
 	log_debug "read_arguments() \$*=$*"
 	block_network=1
@@ -162,8 +168,9 @@ read_arguments() {
 		[ "$image" ] || abort "An image must be provided. Run $CMD --help"
 	fi
 
-	image_name="$(remove_tag "$image")"
-	log_debug "read_arguments() image='$image' image_name='$image_name'"
+	image_uri="$(remove_tag "$image")"
+	image_name=${image_uri##*/}
+	log_debug "read_arguments() image='${image}' image_uri='${image_uri}' image_name='${image_name}'"
 }
 
 check_dependencies() {
@@ -429,10 +436,31 @@ make_volume_noexec() {
 	esac
 }
 
+create_persistence_volumes() {
+	persist_label=$(get_label "$image" page.codeberg.contr.persist)
+	outer_ifs=$IFS
+	IFS='	'
+	for mount_point in $persist_label; do
+		IFS=$outer_ifs
+		case "$mount_point" in
+		*:ro | *:ro,exec | *:ro,noexec | *:exec,ro | *:noexec,ro) abort "Error in image's 'page.codeberg.contr.persist' label. Persistent mounts can not be read-only. Incorrect path is '${mount_point}'" ;;
+		*:exec | *:noexec | *:rw,exec | *:rw,noexec | *:exec,rw | *:noexec,rw) ;;
+		*:r[ow]) mount_point="${mount_point},noexec" ;;
+		*) mount_point="${mount_point}:noexec" ;;
+		esac
+		volume_name=$(substitute_characters "${mount_point%:*}" '/' '__')
+		volume_name="contr-persist__$(sanitize_for_fs "$image_name")__$(sanitize_for_fs "$volume_name")"
+		persistence_volumes="${persistence_volumes}--volume=${volume_name}:${mount_point}
+"
+	done
+	log_debug "[create_persistence_volumes] persistence_volumes=[${persistence_volumes}]"
+}
+
 initialize_run_variables() {
 	user_home="$HOME"
 	volume_home=1
 	cwd_mode='rw,exec'
+	persistence_volumes=
 
 	is_tty=
 	CONTR_PS1=
@@ -469,6 +497,7 @@ main() {
 	# From here on we assume the default action = 'podman-run'
 	check_dependencies cat chmod grep mkdir podman
 	initialize_run_variables
+	create_persistence_volumes
 
 	# Read options from command line
 	while :; do
@@ -587,6 +616,7 @@ main() {
 
 	[ "$entrypoint_file" ] && write_entrypoint_file "$entrypoint_file"
 
+	# shellcheck disable=SC2086
 	exec podman run -i ${is_tty:+-t} --rm \
 		--tz=local \
 		--security-opt=label=disable \
@@ -608,6 +638,7 @@ main() {
 		${profile_file:+"--env=CONTR_PROFILE_1=/run/contr/profile1"} \
 		${per_image_profile_file:+"--volume=${per_image_profile_file}:/run/contr/profile2:ro,noexec"} \
 		${per_image_profile_file:+"--env=CONTR_PROFILE_2=/run/contr/profile2"} \
+		${persistence_volumes} \
 		"$@"
 }
 
