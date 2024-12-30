@@ -477,6 +477,7 @@ create_persistence_volumes() {
 		image_persistence_volumes="${image_persistence_volumes}--volume=${volume_specifier}
 "
 	done
+	IFS=$outer_ifs
 	log_debug "[create_persistence_volumes] image_persistence_volumes=[${image_persistence_volumes}]"
 }
 
@@ -682,7 +683,8 @@ main() {
 		--pull=never \
 		--env=CONTR_DEBUG \
 		${volume_home:+"--volume=$HOME"} \
-		${cwd_mode:+"--volume=${PWD}:${PWD}:$cwd_mode" "--workdir=$PWD"} \
+		${cwd_mode:+"--volume=${PWD}:${PWD}:$cwd_mode"} \
+		${cwd_mode:+"--workdir=$PWD"} \
 		${CONTR_PS1:+"--env=PS1=$CONTR_PS1" "--env=CONTR_PS1=$CONTR_PS1"} \
 		${block_network:+"--network=none"} \
 		${user_home:+"--env=HOME=$user_home"} \
