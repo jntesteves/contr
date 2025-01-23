@@ -1,0 +1,3 @@
+[submodule "nice_modules/nice_things"]
+	path = nice_modules/nice_things
+	url = https://codeberg.org/nice_posix_sh/nice_things.git
