@@ -114,9 +114,14 @@ NS__read_arguments() {
 		[ -n "$image" ] || abort "An image must be provided. Run contr --help"
 	fi
 
-	image_name=${image##*/}
-	image_name=${image_name%%:*}
-	log_debug "[NS__read_arguments] image='${image}' image_name='${image_name}'"
+	image_short_name=${image#*://}
+	case "$image_short_name" in
+	localhost/[a-z0-9]*) image_short_name=${image_short_name#localhost/} ;;
+	docker.io/library/[a-z0-9]*) image_short_name=${image_short_name#docker.io/library/} ;;
+	*.*/[a-z0-9]*) image_short_name=${image_short_name#*.*/} ;;
+	esac
+	image_short_name=${image_short_name%%:*}
+	log_debug "[NS__read_arguments] image='${image}' image_short_name='${image_short_name}'"
 }
 
 NS__read_arguments "$@"

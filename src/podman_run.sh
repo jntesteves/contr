@@ -54,7 +54,7 @@ NS__podman_run() {
 	NS__initialize_run_variables
 	pull_if_missing "$image"
 	# shellcheck disable=SC2154
-	create_persistence_volumes "$image" "$image_name"
+	create_persistence_volumes "$image" "$image_short_name"
 
 	# Read options from command line
 	while :; do
@@ -68,7 +68,7 @@ NS__podman_run() {
 		--no-persist) image_persistence_volumes= ;;
 		--persist | --persist=) missing_opt_arg "$1" ;;
 		--persist=*)
-			add_cli_persistence_volume "${1#'--persist='}" "$image_name"
+			add_cli_persistence_volume "${1#'--persist='}" "$image_short_name"
 			;;
 		-[04567] | -n[04567] | -[04567]n)
 			opt="${1%n}"

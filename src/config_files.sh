@@ -36,8 +36,8 @@ NS__set_config_files() {
 	per_image_environment_file=
 	per_image_options_file=
 	per_image_profile_file=
-	if [ -n "$image_name" ]; then
-		per_image_config_dirname="$(sanitize_for_fs "$image_name")"
+	if [ -n "$image_short_name" ]; then
+		per_image_config_dirname="$(sanitize_for_fs "$image_short_name")"
 		per_image_config_dir="$config_dir/per-image/$per_image_config_dirname"
 		log_debug "[NS__set_config_files] per_image_config_dir='$per_image_config_dir'"
 
