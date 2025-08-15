@@ -28,7 +28,7 @@ For running CLI/TUI programs with limited access to your data, compiling and tes
 
 ## Usage
 ```
-contr 0.7.1
+contr 0.8.0
 Run container exposing the current working directory
 
 Usage:
@@ -59,7 +59,8 @@ Podman options:
 Environment variables:
   CONTR_CONFIG_DIR   Configuration directory. Defaults to $XDG_CONFIG_HOME/contr or ~/.config/contr
   CONTR_RUNTIME_DIR  Runtime directory. Defaults to $XDG_RUNTIME_DIR/contr or /run/user/$UID/contr or /tmp/contr
-  CONTR_DEBUG        Debug flags
+  CONTR_LOG_LEVEL    Log verbosity between 0-5 where 0 is silent (default 3), also recognizes levels by name, and supports a comma separated list of options: [0|none] | [error|warn|info|debug|trace],[color|no-color]
+  NO_COLOR           Same as CONTR_LOG_LEVEL=no-color (for conformance with the NO_COLOR standard)
 
 Examples:
   contr alpine

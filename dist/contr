@@ -1,251 +1,275 @@
 #!/bin/sh
 # SPDX-License-Identifier: Unlicense
-VERSION='0.7.1'
-CMD="$(basename "$0")"
-PWD=$(pwd)
-USER_ID=$(id -u)
-[ -d "/run/user/$USER_ID" ] && [ -w "/run/user/$USER_ID" ] && XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$USER_ID}"
-config_dir="$CONTR_CONFIG_DIR"
-runtime_dir="$CONTR_RUNTIME_DIR"
-is_debug="${CONTR_DEBUG:+1}"
+# shellcheck disable=SC2046,SC2086,SC2120
+set -Cefu && IFS=$(printf '\037') || exit 111 # strict_mode
 
-print_help_text() {
-	podman_options=${1-"  -*                       Any option for the podman-run command. Run '$CMD --help-all' for a full list of options"}
-	podman_options=${podman_options:-'  Failed to get Podman options, check if Podman is installed correctly'}
+# nice_things/log/log.sh 0.2.0
+case "${CONTR_LOG_LEVEL-}" in
+0 | none) nice__log__log__log_is_level() { case "$1" in 0 | none) ;; *) return 1 ;; esac } ;;
+5* | *trace*) nice__log__log__log_is_level() { case "$1" in 0 | none | 1 | error | 2 | warn | 3 | info | 4 | debug | 5 | trace) ;; *) return 1 ;; esac } ;;
+4* | *debug*) nice__log__log__log_is_level() { case "$1" in 0 | none | 1 | error | 2 | warn | 3 | info | 4 | debug) ;; *) return 1 ;; esac } ;;
+2* | *warn*) nice__log__log__log_is_level() { case "$1" in 0 | none | 1 | error | 2 | warn) ;; *) return 1 ;; esac } ;;
+1* | *error*) nice__log__log__log_is_level() { case "$1" in 0 | none | 1 | error) ;; *) return 1 ;; esac } ;;
+*) nice__log__log__log_is_level() { case "$1" in 0 | none | 1 | error | 2 | warn | 3 | info) ;; *) return 1 ;; esac } ;;
+esac
 
-	cat <<EOF
-contr $VERSION
-Run container exposing the current working directory
+nice__log__log__no_color=
+case "${CONTR_LOG_LEVEL-}" in *no-color*) nice__log__log__no_color=1 ;; *color*) nice__log__log__no_color= ;; esac
+if ! [ -t 2 ] || [ "${NO_COLOR-}" ] || [ "${TERM-}" = dumb ]; then nice__log__log__no_color=1; fi
 
-Usage:
-  $CMD [OPTION...] [--] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
-  $CMD --make-config[=IMAGE]
+if [ "$nice__log__log__no_color" ]; then
+	nice__log__log__log_error() { :; } && if nice__log__log__log_is_level 1; then nice__log__log__log_error() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf 'ERROR %s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_warn() { :; } && if nice__log__log__log_is_level 2; then nice__log__log__log_warn() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf 'WARN %s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_info() { :; } && if nice__log__log__log_is_level 3; then nice__log__log__log_info() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf '%s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_debug() { :; } && if nice__log__log__log_is_level 4; then nice__log__log__log_debug() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf 'DEBUG %s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_trace() { :; } && if nice__log__log__log_is_level 5; then nice__log__log__log_trace() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf 'TRACE %s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+else
+	nice__log__log__log_error() { :; } && if nice__log__log__log_is_level 1; then nice__log__log__log_error() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf '\001\033[1;31m\002''ERROR''\001\033[0;31m\002'' %s''\001\033[m\002''\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_warn() { :; } && if nice__log__log__log_is_level 2; then nice__log__log__log_warn() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf '\001\033[1;33m\002''WARN''\001\033[0;33m\002'' %s''\001\033[m\002''\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_info() { :; } && if nice__log__log__log_is_level 3; then nice__log__log__log_info() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf '\001\033[1;32m\002''''\001\033[m\002''%s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_debug() { :; } && if nice__log__log__log_is_level 4; then nice__log__log__log_debug() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf '\001\033[1;36m\002''DEBUG''\001\033[m\002'' %s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_trace() { :; } && if nice__log__log__log_is_level 5; then nice__log__log__log_trace() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf '\001\033[1;35m\002''TRACE''\001\033[m\002'' %s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+fi
 
-Options:
-  --make-config[=IMAGE]    Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
-  --cwd-mode=(0|4|5|6|7),
-  --cwd-mode={ro,rw,exec}  The permission mode for mounting the current working directory inside the container. If set to 0, CWD will not be mounted inside the container. Numbers 4-7 have the same meanings as in chmod's octal values. Short flags exist for the octal form, as follows:
-  -0                       Do not mount the current working directory inside the container '--cwd-mode=0'
-  -4                       Mount the current working directory with read-only permissions '--cwd-mode=ro'
-  -5                       Mount the current working directory with read and execute permissions '--cwd-mode=ro,exec'
-  -6                       Mount the current working directory with read and write permissions '--cwd-mode=rw'
-  -7                       Mount the current working directory with read, write and execute permissions (default) '--cwd-mode=rw,exec'
-  -n                       Allow network access
-  --no-persist             Override "page.codeberg.contr.persist" label from image, canceling its mount points
-  --persist=PATH[:exec]    Create a mount point at PATH to persist its data across invocations. PATH must be absolute or relative to [~ | home]
-  --pio                    Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
-  --plain                  Do not override the image's entrypoint script
-  --pure                   Ignore all configuration files and custom entrypoint
-  --help                   Print this help text and exit
-  --help-all               Print this help text with all options to podman-run included and exit
+log_error() { nice__log__log__log_error "$@"; }
+log_warn() { nice__log__log__log_warn "$@"; }
+log_info() { nice__log__log__log_info "$@"; }
+log_debug() { nice__log__log__log_debug "$@"; }
+log_trace() { nice__log__log__log_trace "$@"; }
+log_is_level() { nice__log__log__log_is_level "$@"; }
 
-Podman options:
-$podman_options
-
-Environment variables:
-  CONTR_CONFIG_DIR   Configuration directory. Defaults to \$XDG_CONFIG_HOME/contr or ~/.config/contr
-  CONTR_RUNTIME_DIR  Runtime directory. Defaults to \$XDG_RUNTIME_DIR/contr or /run/user/\$UID/contr or /tmp/contr
-  CONTR_DEBUG        Debug flags
-
-Examples:
-  $CMD alpine
-  $CMD --make-config=amazon/aws-cli
-  $CMD -n amazon/aws-cli aws --version
-  $CMD -n -p 3000 node:alpine npm run dev -- --host 0.0.0.0
-EOF
-	exit
+# nice_things/log/abort.sh 0.2.0
+nice__log__abort__abort() {
+	# shellcheck disable=SC2319
+	nice__log__abort__status=${2:-$?}
+	[ "$nice__log__abort__status" -gt 0 ] || [ "${2-}" ] || nice__log__abort__status=1
+	case "$(type nice__log__log__log_error 2>/dev/null)" in *function*) (nice__log__log__log_error "${1-}") || : ;; *) (printf '%s\n' "${1-}" >&2) || : ;; esac
+	exit "$nice__log__abort__status"
 }
 
-log_error() { printf '%s\n' "$*" >&2; }
-log_info() { printf '%s\n' "$*"; }
-log_debug() { [ "$is_debug" ] && printf 'DEBUG %s\n' "$*"; }
-abort() {
-	log_error "$*"
-	exit 1
-}
-missing_opt_arg() { abort "Missing argument for option $*. Run $CMD --help"; }
+abort() { nice__log__abort__abort "$@"; }
 
+# nice_things/text/substitute_characters.sh 0.2.0
 # substitute_characters text pattern [replacement]
 # Substitute every instance of the pattern characters in text with replacement string
 # This function uses only shell builtins and has no external dependencies (f.e. on sed)
 # This is slower than using sed on large inputs, but faster on many invocations with small inputs
-substitute_characters() {
-	case $- in *f*) NS__outer_noglob='-f' ;; *) NS__outer_noglob='+f' ;; esac
-	NS__outer_ifs=$IFS
+nice__text__substitute_characters__substitute_characters() {
+	case $- in *f*) nice__text__substitute_characters__outer_noglob='-f' ;; *) nice__text__substitute_characters__outer_noglob='+f' ;; esac
+	nice__text__substitute_characters__outer_ifs=$IFS
 	set -f # Disable Pathname Expansion (aka globbing)
 	IFS=$2
-	unset -v NS__last_field
-	for NS__field in ${1}P; do
-		printf '%s' ${NS__last_field+"${NS__last_field}${3}"}
-		NS__last_field=$NS__field
+	unset -v nice__text__substitute_characters__last_field
+	for nice__text__substitute_characters__field in ${1}P; do
+		printf '%s' ${nice__text__substitute_characters__last_field+"${nice__text__substitute_characters__last_field}${3-}"}
+		nice__text__substitute_characters__last_field=$nice__text__substitute_characters__field
 	done
-	printf '%s' "${NS__last_field%?}"
-	IFS=$NS__outer_ifs
-	set "$NS__outer_noglob"
-	unset -v NS__outer_noglob NS__outer_ifs NS__last_field NS__field
+	printf '%s' "${nice__text__substitute_characters__last_field%P}"
+	IFS=$nice__text__substitute_characters__outer_ifs
+	set "$nice__text__substitute_characters__outer_noglob"
+	unset -v nice__text__substitute_characters__outer_noglob nice__text__substitute_characters__outer_ifs nice__text__substitute_characters__last_field nice__text__substitute_characters__field
 }
 
-# Remove tag from a container image's name/URI
-remove_tag() {
-	case "${1##*:}" in          # Get the last component
-	*/*) printf '%s' "$1" ;;    # If there are slashes, it is not a tag
-	*) printf '%s' "${1%:*}" ;; # Otherwise, remove the last component
-	esac
-}
+substitute_characters() { nice__text__substitute_characters__substitute_characters "$@"; }
 
+# util.sh
 # Sanitize string for use in filename. Replaces / and : with _
 sanitize_for_fs() {
 	substitute_characters "$1" '/:' '_'
 }
-
-# get_label IMAGE LABEL
-# Print the value of a Label from a container image
-get_label() {
-	podman image inspect --format "{{index .Config.Labels \"${2}\"}}" "$1"
-}
-
-read_arguments() {
-	log_debug "read_arguments() \$*=$*"
-	block_network=1
-	image=
-	action='podman-run'
-	podman_options="$(podman --help 2>/dev/null | grep -E '^\s+--|^\s+-\w, --' -)"
-	podman_run_options="$(podman run --help 2>/dev/null | grep -E '^\s+--|^\s+-\w, --' -)"
-
-	case "$1" in
-	--make-config=*) action='make-config-per-image' && image="${1#'--make-config='}" ;;
-	--make-config) action='make-config' ;;
-	--help | -h) print_help_text ;;
-	--help-all) print_help_text "$podman_run_options" ;;
-	esac
-
-	if [ "$action" = 'podman-run' ]; then
-		# From the podman option flags, filter only those that take arguments
-		print_podman_options_take_arg() {
-			printf '%s\n%s' "$podman_options" "$podman_run_options" |
-				grep -Ei '^\s+-\w, --\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while read -r line; do
-				printf '%s\n' "${line%%,*}"
-				flag=${line#*[[:space:]]}
-				flag=${flag%%[[:space:]]*}
-				printf '%s\n' "$flag"
-			done
-
-			printf '%s\n%s' "$podman_options" "$podman_run_options" |
-				grep -Ei '^\s+--\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while read -r line; do
-				printf '%s\n' "${line%%[[:space:]]*}"
-			done
-		}
-
-		podman_options_take_arg="$(print_podman_options_take_arg)"
-
-		is_podman_option() (
-			if [ "$1" ]; then
-				for podman_option in --net $podman_options_take_arg; do
-					[ "$podman_option" = "$1" ] && exit
-				done
-			fi
-			exit 1
-		)
-
-		i=1
-		last_flag=
-		for arg in "$@"; do
-			case "$arg" in
-			-n | -n[04567] | -[04567]n | --net | --net=* | --network | --network=*) block_network= ;;
-			esac
-			case "$arg" in
-			-*) last_flag="$arg" ;;
-			*)
-				if is_podman_option "$last_flag"; then
-					last_flag=
-				else
-					image_arg_pos="$i"
-					image="$arg"
-					break
-				fi
-				;;
-			esac
-			i=$((i + 1))
-		done
-		[ "$image" ] || abort "An image must be provided. Run $CMD --help"
-	fi
-
-	image_uri="$(remove_tag "$image")"
-	image_name=${image_uri##*/}
-	log_debug "read_arguments() image='${image}' image_uri='${image_uri}' image_name='${image_name}'"
-}
-
 check_dependencies() {
-	missing=
-	for dep in "$@"; do
-		if ! command -v "$dep" >/dev/null; then
-			log_error "$dep is not installed"
-			missing=1
+	contr__util__missing=
+	for contr__util__dep in "$@"; do
+		if ! command -v "$contr__util__dep" >/dev/null; then
+			log_error "$contr__util__dep is not installed"
+			contr__util__missing=1
 		fi
 	done
-
-	if [ "$missing" ]; then
+	if [ -n "$contr__util__missing" ]; then
 		abort "Aborted due to missing dependencies. Make sure all dependencies are available in the PATH"
 	fi
+	unset -v contr__util__missing contr__util__dep
 }
 
-set_config_files() {
-	[ "$config_dir" ] || config_dir="${XDG_CONFIG_HOME:-"$HOME/.config"}/contr"
-	log_debug "set_config_files() config_dir='$config_dir'"
+nice__collections__native_list__log_error() { nice__log__log__log_error "$@"; }
 
-	[ "$runtime_dir" ] || runtime_dir="${XDG_RUNTIME_DIR:-/tmp}/contr"
-	log_debug "set_config_files() runtime_dir='$runtime_dir'"
+# nice_things/collections/native_list.sh 0.2.0
+nice__collections__native_list__length() { printf '%s' $#; }
+# Test if lists should have a trailing field separator in the current shell (most do, zsh differs)
+# shellcheck disable=SC2086
+nice__collections__native_list__list_is_terminated_=$(
+	l=x, IFS=,
+	if [ "$(nice__collections__native_list__length $l)" -eq 1 ]; then printf 1; fi
+) || exit
+readonly nice__collections__native_list__list_is_terminated_
+# Test if any of the arguments is itself a list according to the current value of IFS
+nice__collections__native_list__is_list() {
+	while [ $# -gt 0 ]; do
+		case "$1" in *["$IFS"]*) return 0 ;; esac
+		shift
+	done
+	return 1
+}
+nice__collections__native_list__to_string() {
+	nice__collections__native_list__outer_ifs=$IFS
+	IFS=,
+	printf '[%s]' "$*"
+	IFS=$nice__collections__native_list__outer_ifs
+}
+# Turn arguments into a list of items separated by IFS
+nice__collections__native_list__list() {
+	if ! [ "$IFS" ]; then
+		nice__collections__native_list__log_error "[nice__collections__native_list__list] Tried to create a list but IFS is null"
+		return 1
+	fi
+	if nice__collections__native_list__is_list "$@"; then
+		nice__collections__native_list__log_error "[nice__collections__native_list__list] List items cannot be lists"
+		return 1
+	fi
+	if [ -t 1 ]; then
+		nice__collections__native_list__to_string "$@"
+	elif [ $# -gt 0 ]; then
+		printf '%s' "$*"
+		! [ "$nice__collections__native_list__list_is_terminated_" ] || printf '%s' "${IFS%"${IFS#?}"}"
+	fi
+}
+# $(list_from text [separator]): Turn text into a list splitting at each occurrence of separator
+# If separator isn't provided the default value of IFS is used (space|tab|line-feed)
+nice__collections__native_list__list_from() {
+	case $- in *f*) nice__collections__native_list__outer_noglob='-f' ;; *) nice__collections__native_list__outer_noglob='+f' ;; esac
+	nice__collections__native_list__outer_ifs=$IFS
+	set -f
+	nice__collections__native_list__str=$1
+	[ "$nice__collections__native_list__list_is_terminated_" ] || nice__collections__native_list__str=${1%["${2-}"]}
+	IFS=${2:-' ''	''
+'}
+	# shellcheck disable=SC2086
+	IFS=$nice__collections__native_list__outer_ifs nice__collections__native_list__list $nice__collections__native_list__str
+	IFS=$nice__collections__native_list__outer_ifs
+	set "$nice__collections__native_list__outer_noglob"
+	unset -v nice__collections__native_list__outer_noglob nice__collections__native_list__outer_ifs nice__collections__native_list__str
+}
 
-	entrypoint_file="$runtime_dir/entrypoint"
-	log_debug "set_config_files() entrypoint_file='$entrypoint_file'"
+length() { nice__collections__native_list__length "$@"; }
+to_string() { nice__collections__native_list__to_string "$@"; }
+list() { nice__collections__native_list__list "$@"; }
+list_from() { nice__collections__native_list__list_from "$@"; }
+
+# nice_things/io/cat.sh 0.2.0
+# https://pubs.opengroup.org/onlinepubs/9699919799/utilities/cat.html
+# Simple POSIX-compatible cat utility in pure shell script
+# shellcheck disable=SC2120
+nice__io__cat__cat() {
+	while :; do
+		case "${1-}" in
+		-u) shift ;; # Ignore unused option flag
+		--) shift && break ;;
+		*) break ;;
+		esac
+	done
+	for nice__io__cat__filename in "$@"; do # Recursively print each file in arguments
+		case "$nice__io__cat__filename" in
+		-) nice__io__cat__cat || return ;; # Print stdin
+		*) nice__io__cat__cat <"$nice__io__cat__filename" || return ;;
+		esac
+	done
+	[ $# -eq 0 ] || return 0 # Only print from stdin when no arguments
+	nice__io__cat__trailing_lf='
+'
+	while IFS= read -r nice__io__cat__line || { nice__io__cat__trailing_lf= && [ -n "$nice__io__cat__line" ]; }; do
+		printf '%s' "${nice__io__cat__line}${nice__io__cat__trailing_lf}" || return
+	done
+	unset -v nice__io__cat__filename nice__io__cat__trailing_lf nice__io__cat__line
+}
+
+cat() { nice__io__cat__cat "$@"; }
+
+# config_files.sh
+contr__config_files__set_config_files() {
+	config_dir=${CONTR_CONFIG_DIR-}
+	[ -n "$config_dir" ] || config_dir="${XDG_CONFIG_HOME:-"$HOME/.config"}/contr"
+	log_debug "[contr__config_files__set_config_files] config_dir='$config_dir'"
 
 	environment_file="$config_dir/environment"
-	log_debug "set_config_files() environment_file='$environment_file'"
-	[ ! -r "$environment_file" ] && environment_file= &&
-		log_debug "set_config_files() environment_file unreadable"
-
+	log_debug "[contr__config_files__set_config_files] environment_file='$environment_file'"
+	if ! [ -r "$environment_file" ]; then
+		environment_file=
+		log_debug "[contr__config_files__set_config_files] environment_file unreadable"
+	fi
 	options_file="$config_dir/options"
-	log_debug "set_config_files() options_file='$options_file'"
-	[ ! -r "$options_file" ] && options_file= &&
-		log_debug "set_config_files() options_file unreadable"
-
+	log_debug "[contr__config_files__set_config_files] options_file='$options_file'"
+	if ! [ -r "$options_file" ]; then
+		options_file=
+		log_debug "[contr__config_files__set_config_files] options_file unreadable"
+	fi
 	profile_file="$config_dir/profile"
-	log_debug "set_config_files() profile_file='$profile_file'"
-	[ ! -r "$profile_file" ] && profile_file= &&
-		log_debug "set_config_files() profile_file unreadable"
+	log_debug "[contr__config_files__set_config_files] profile_file='$profile_file'"
+	if ! [ -r "$profile_file" ]; then
+		profile_file=
+		log_debug "[contr__config_files__set_config_files] profile_file unreadable"
+	fi
 
 	per_image_config_dir=
 	per_image_environment_file=
 	per_image_options_file=
 	per_image_profile_file=
-
-	if [ "$image_name" ]; then
-		per_image_config_dirname="$(sanitize_for_fs "$image_name")"
+	if [ -n "$image_short_name" ]; then
+		per_image_config_dirname="$(sanitize_for_fs "$image_short_name")"
 		per_image_config_dir="$config_dir/per-image/$per_image_config_dirname"
-		log_debug "set_config_files() per_image_config_dir='$per_image_config_dir'"
+		log_debug "[contr__config_files__set_config_files] per_image_config_dir='$per_image_config_dir'"
 
 		per_image_environment_file="$per_image_config_dir/environment"
-		log_debug "set_config_files() per_image_environment_file='$per_image_environment_file'"
-		[ ! -r "$per_image_environment_file" ] && per_image_environment_file= &&
-			log_debug "set_config_files() per_image_environment_file unreadable"
-
+		log_debug "[contr__config_files__set_config_files] per_image_environment_file='$per_image_environment_file'"
+		if ! [ -r "$per_image_environment_file" ]; then
+			per_image_environment_file=
+			log_debug "[contr__config_files__set_config_files] per_image_environment_file unreadable"
+		fi
 		per_image_options_file="$per_image_config_dir/options"
-		log_debug "set_config_files() per_image_options_file='$per_image_options_file'"
-		[ ! -r "$per_image_options_file" ] && per_image_options_file= &&
-			log_debug "set_config_files() per_image_options_file unreadable"
-
+		log_debug "[contr__config_files__set_config_files] per_image_options_file='$per_image_options_file'"
+		if ! [ -r "$per_image_options_file" ]; then
+			per_image_options_file=
+			log_debug "[contr__config_files__set_config_files] per_image_options_file unreadable"
+		fi
 		per_image_profile_file="$per_image_config_dir/profile"
-		log_debug "set_config_files() per_image_profile_file='$per_image_profile_file'"
-		[ ! -r "$per_image_profile_file" ] && per_image_profile_file= &&
-			log_debug "set_config_files() per_image_profile_file unreadable"
+		log_debug "[contr__config_files__set_config_files] per_image_profile_file='$per_image_profile_file'"
+		if ! [ -r "$per_image_profile_file" ]; then
+			per_image_profile_file=
+			log_debug "[contr__config_files__set_config_files] per_image_profile_file unreadable"
+		fi
 	fi
 }
+contr__config_files__write_config_files() {
+	if [ "$1" ]; then
+		set -- "$per_image_config_dir"
+	else
+		set -- "$config_dir"
+	fi
+	log_debug "[contr__config_files__write_config_files] mkdir -p \"$1\""
+	mkdir -p "$1"
 
-write_config_files() {
-	target_dir="$1"
+	if ! [ -f "${1}/environment" ]; then
+		log_info "Writing config file at '${1}/environment'"
+		contr__config_files__print_environment_file_ >"${1}/environment"
+	else
+		log_info "Config file already exists at '${1}/environment'"
+	fi
 
-	print_environment_file() {
-		cat <<EOF_ENVIRONMENT_FILE
+	if ! [ -f "${1}/options" ]; then
+		log_info "Writing config file at '${1}/options'"
+		contr__config_files__print_options_file_ >"${1}/options"
+	else
+		log_info "Config file already exists at '${1}/options'"
+	fi
+
+	if ! [ -f "${1}/profile" ]; then
+		log_info "Writing config file at '${1}/profile'"
+		contr__config_files__print_profile_file_ >"${1}/profile"
+	else
+		log_info "Config file already exists at '${1}/profile'"
+	fi
+}
+contr__config_files__print_environment_file_() {
+	cat <<'EOF_ENVIRONMENT_FILE'
 # environment - contr
 # Environment variables for containers
 #
@@ -275,11 +299,11 @@ write_config_files() {
 # Uncomment the following line if you don't like systemctl's auto-paging feature:
 #SYSTEMD_PAGER=
 #
-EOF_ENVIRONMENT_FILE
-	}
 
-	print_options_file() {
-		cat <<EOF_OPTIONS_FILE
+EOF_ENVIRONMENT_FILE
+}
+contr__config_files__print_options_file_() {
+	cat <<EOF_OPTIONS_FILE
 # options - contr
 # Options for the podman-run command
 #
@@ -303,11 +327,11 @@ EOF_ENVIRONMENT_FILE
 # User-specific executable files
 #--volume=${HOME}/.local/bin:${HOME}/.local/bin:ro,exec
 #
-EOF_OPTIONS_FILE
-	}
 
-	print_profile_file() {
-		cat <<"EOF_PROFILE_FILE"
+EOF_OPTIONS_FILE
+}
+contr__config_files__print_profile_file_() {
+	cat <<'EOF_PROFILE_FILE'
 # profile - contr
 # User-specific environment for containers
 #
@@ -336,37 +360,199 @@ EOF_OPTIONS_FILE
 #alias ll='ls -l --color=auto'
 #alias ls='ls --color=auto'
 #
+
 EOF_PROFILE_FILE
+}
+
+set_config_files() { contr__config_files__set_config_files "$@"; }
+write_config_files() { contr__config_files__write_config_files "$@"; }
+
+# podman_options.sh
+contr__podman_options__podman_options=$(podman --help 2>/dev/null | grep -E '^\s+--|^\s+-\w, --' -) && :
+contr__podman_options__podman_run_options=$(podman run --help 2>/dev/null | grep -E '^\s+--|^\s+-\w, --' -) && :
+readonly contr__podman_options__podman_options contr__podman_options__podman_run_options
+
+# From the podman option flags, filter only those that take arguments
+contr__podman_options__print_podman_options_with_arg() {
+	printf '%s\n%s' "$contr__podman_options__podman_options" "$contr__podman_options__podman_run_options" |
+		grep -Ei '^\s+-\w, --\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while IFS= read -r contr__podman_options__line || [ -n "$contr__podman_options__line" ]; do
+		contr__podman_options__line=${contr__podman_options__line#"${contr__podman_options__line%%[![:space:]]*}"} # Trim leading spaces
+		printf '%s\n' "${contr__podman_options__line%%,*}"
+		contr__podman_options__long_opt=${contr__podman_options__line#*,[[:space:]]}
+		contr__podman_options__long_opt=${contr__podman_options__long_opt%%[[:space:]]*}
+		printf '%s\n' "$contr__podman_options__long_opt"
+	done
+	printf '%s\n%s' "$contr__podman_options__podman_options" "$contr__podman_options__podman_run_options" |
+		grep -Ei '^\s+--\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while IFS= read -r contr__podman_options__line || [ -n "$contr__podman_options__line" ]; do
+		contr__podman_options__line=${contr__podman_options__line#"${contr__podman_options__line%%[![:space:]]*}"} # Trim leading spaces
+		printf '%s\n' "${contr__podman_options__line%%[[:space:]]*}"
+	done
+	unset -v contr__podman_options__line contr__podman_options__long_opt
+}
+contr__podman_options__podman_options_with_arg=$(list_from "$(contr__podman_options__print_podman_options_with_arg)")
+readonly contr__podman_options__podman_options_with_arg
+
+contr__podman_options__is_podman_option_with_arg() {
+	case "$1" in "" | [!-]*) return 1 ;; esac
+	for contr__podman_options__podman_option in --net $contr__podman_options__podman_options_with_arg; do
+		if [ "X$contr__podman_options__podman_option" = "X$1" ]; then return 0; fi
+	done
+	return 1
+}
+
+readonly podman_run_options="${contr__podman_options__podman_run_options}"
+readonly podman_options_with_arg="${contr__podman_options__podman_options_with_arg}"
+is_podman_option_with_arg() { contr__podman_options__is_podman_option_with_arg "$@"; }
+
+nice__storage__create_runtime_file__log_error() { nice__log__log__log_error "$@"; }
+nice__storage__create_runtime_file__log_warn() { nice__log__log__log_warn "$@"; }
+
+# nice_things/storage/create_runtime_file.sh 0.2.0
+# shellcheck disable=SC2120
+nice__storage__create_runtime_file__create_runtime_file() {
+	# shellcheck disable=SC2015
+	[ -n "${NICE__RUNTIME_DIR-}" ] && [ -d "$NICE__RUNTIME_DIR" ] || {
+		nice__storage__create_runtime_file__log_error "[create_runtime_file] Runtime directory does not exist. Call setup_runtime_dir before using this function"
+		return 1
 	}
-
-	log_debug "write_config_files() mkdir -p \"$target_dir\""
-	mkdir -p "$target_dir"
-
-	if [ ! -f "$target_dir/environment" ]; then
-		log_info "Writing config file at '$target_dir/environment'"
-		print_environment_file >"$target_dir/environment"
-	else
-		log_info "Config file already exists at '$target_dir/environment'"
+	command umask 0077 || nice__storage__create_runtime_file__log_warn "[create_runtime_file] Failed to set umask 0077"
+	case "${1-}" in
+	/* | */ | ./* | ../* | . | .. | '')
+		nice__storage__create_runtime_file__log_error "[create_runtime_file] Unsupported file path argument ${1-}"
+		return 2
+		;;
+	*/*)
+		nice__storage__create_runtime_file__dir="${NICE__RUNTIME_DIR}/${1%/*}"
+		nice__storage__create_runtime_file__file="${nice__storage__create_runtime_file__dir}/${1##*/}"
+		command mkdir -p "$nice__storage__create_runtime_file__dir" || {
+			nice__storage__create_runtime_file__log_error "[create_runtime_file] Failed to create runtime directory at ${nice__storage__create_runtime_file__dir}"
+			return 1
+		}
+		;;
+	*) nice__storage__create_runtime_file__file="${NICE__RUNTIME_DIR}/${1}" ;;
+	esac
+	if ! [ -e "$nice__storage__create_runtime_file__file" ] || [ "${2-}" ]; then
+		command : >|"$nice__storage__create_runtime_file__file" || {
+			nice__storage__create_runtime_file__log_error "[create_runtime_file] Failed to write runtime file at ${nice__storage__create_runtime_file__file}"
+			return 1
+		}
 	fi
+	printf '%s' "$nice__storage__create_runtime_file__file"
+	unset -v nice__storage__create_runtime_file__dir nice__storage__create_runtime_file__file
+}
 
-	if [ ! -f "$target_dir/options" ]; then
-		log_info "Writing config file at '$target_dir/options'"
-		print_options_file >"$target_dir/options"
+create_runtime_file() { nice__storage__create_runtime_file__create_runtime_file "$@"; }
+
+nice__storage__setup_runtime_dir__log_error() { nice__log__log__log_error "$@"; }
+nice__storage__setup_runtime_dir__log_warn() { nice__log__log__log_warn "$@"; }
+
+nice__storage__destructor__log_error() { nice__log__log__log_error "$@"; }
+
+nice__text__escape_single_quotes__substitute_characters() { nice__text__substitute_characters__substitute_characters "$@"; }
+
+# nice_things/text/escape_single_quotes.sh 0.2.0
+# Escape text for use in a shell script single-quoted string
+nice__text__escape_single_quotes__escape_single_quotes() { nice__text__escape_single_quotes__substitute_characters "$1" \' "'\"'\"'"; }
+
+escape_single_quotes() { nice__text__escape_single_quotes__escape_single_quotes "$@"; }
+
+# nice_things/lang/quote.sh 0.2.0
+# quote ARG...
+# Quote arguments to make them safe to eval. Prints a list separated by IFS
+nice__lang__quote__quote() {
+	while [ $# -gt 1 ]; do
+		printf "'"
+		escape_single_quotes "$1"
+		printf "'%s" "${IFS%"${IFS#?}"}"
+		shift
+	done
+	printf "'"
+	escape_single_quotes "$1"
+	printf "'"
+}
+
+nice__storage__destructor__quote() { nice__lang__quote__quote "$@"; }
+
+# nice_things/storage/destructor.sh 0.2.0
+nice__storage__destructor__setup_destructor=
+nice__storage__destructor__cmd_list=
+# shellcheck disable=SC2120
+nice__storage__destructor__setup_destructor() {
+	if [ $# -gt 0 ]; then
+		# trap - HUP INT QUIT ABRT ALRM TERM
+		while [ $# -gt 0 ]; do
+			case "$1" in
+			'' | exit | EXIT | 0) ;;
+			*) trap exit "$1" ;;
+			esac
+			shift
+		done
 	else
-		log_info "Config file already exists at '$target_dir/options'"
+		if ! [ "$nice__storage__destructor__setup_destructor" ]; then
+			trap exit HUP INT QUIT ABRT ALRM TERM
+		fi
 	fi
+	nice__storage__destructor__setup_destructor=1
+}
+nice__storage__destructor__add_destructor() {
+	[ -n "$1" ] || exit
+	nice__storage__destructor__setup_destructor
+	nice__storage__destructor__cmd_list="${nice__storage__destructor__cmd_list}($(IFS=' ' nice__storage__destructor__quote "$@"))||:;"
+	trap -- "$nice__storage__destructor__cmd_list" EXIT
+}
 
-	if [ ! -f "$target_dir/profile" ]; then
-		log_info "Writing config file at '$target_dir/profile'"
-		print_profile_file >"$target_dir/profile"
-	else
-		log_info "Config file already exists at '$target_dir/profile'"
+nice__storage__setup_runtime_dir__add_destructor() { nice__storage__destructor__add_destructor "$@"; }
+
+# nice_things/storage/setup_runtime_dir.sh 0.2.0
+NICE__USER_RUNTIME_DIR=
+NICE__RUNTIME_DIR=
+# shellcheck disable=SC2120
+nice__storage__setup_runtime_dir__setup_runtime_dir() {
+	if [ -n "${NICE__RUNTIME_DIR-}" ]; then return 0; fi
+	nice__storage__setup_runtime_dir__add_destructor nice__storage__setup_runtime_dir__cleanup
+	nice__storage__setup_runtime_dir__program_name=${1:-"${0##*/}"}
+	nice__storage__setup_runtime_dir__outer_umask=$(command umask) || nice__storage__setup_runtime_dir__log_warn "[setup_runtime_dir] Failed to get umask"
+	nice__storage__setup_runtime_dir__user_id=$(command id -u) || nice__storage__setup_runtime_dir__user_id=0
+	nice__storage__setup_runtime_dir__user_runtime_dir=${XDG_RUNTIME_DIR-}
+	if [ -z "$nice__storage__setup_runtime_dir__user_runtime_dir" ] && [ -d "/run/user/${nice__storage__setup_runtime_dir__user_id}" ] && [ -w "/run/user/${nice__storage__setup_runtime_dir__user_id}" ]; then
+		nice__storage__setup_runtime_dir__user_runtime_dir="/run/user/${nice__storage__setup_runtime_dir__user_id}"
+	fi
+	[ -n "$nice__storage__setup_runtime_dir__user_runtime_dir" ] || nice__storage__setup_runtime_dir__user_runtime_dir="/tmp/user/${nice__storage__setup_runtime_dir__user_id}"
+	command umask 0000 >/dev/null || nice__storage__setup_runtime_dir__log_warn "[setup_runtime_dir] Failed to set umask 0000"
+	# shellcheck disable=SC2174
+	command mkdir -p -m 0700 "$nice__storage__setup_runtime_dir__user_runtime_dir" || {
+		nice__storage__setup_runtime_dir__log_error "[setup_runtime_dir] Failed to create user runtime directory at ${nice__storage__setup_runtime_dir__user_runtime_dir}"
+		return 1
+	}
+	# shellcheck disable=SC2034
+	readonly NICE__USER_RUNTIME_DIR="$nice__storage__setup_runtime_dir__user_runtime_dir"
+	command umask 0077 >/dev/null || nice__storage__setup_runtime_dir__log_warn "[setup_runtime_dir] Failed to set umask 0077"
+	readonly NICE__RUNTIME_DIR="${nice__storage__setup_runtime_dir__user_runtime_dir}/${nice__storage__setup_runtime_dir__program_name}/$$"
+	command mkdir -p "$NICE__RUNTIME_DIR" || {
+		nice__storage__setup_runtime_dir__log_error "[setup_runtime_dir] Failed to create runtime directory at ${NICE__RUNTIME_DIR}"
+		return 1
+	}
+	command umask "$nice__storage__setup_runtime_dir__outer_umask" >/dev/null || nice__storage__setup_runtime_dir__log_warn "[setup_runtime_dir] Failed to restore umask ${nice__storage__setup_runtime_dir__outer_umask}"
+	unset -v nice__storage__setup_runtime_dir__program_name nice__storage__setup_runtime_dir__outer_umask nice__storage__setup_runtime_dir__user_id nice__storage__setup_runtime_dir__user_runtime_dir
+}
+nice__storage__setup_runtime_dir__cleanup() {
+	if [ -n "${NICE__RUNTIME_DIR-}" ] && [ -d "$NICE__RUNTIME_DIR" ]; then
+		rm -rf "$NICE__RUNTIME_DIR" >/dev/null 2>&1 || :
 	fi
 }
 
-write_entrypoint_file() {
-	print_entrypoint_file() {
-		cat <<"EOF_ENTRYPOINT_FILE"
+setup_runtime_dir() { nice__storage__setup_runtime_dir__setup_runtime_dir "$@"; }
+
+# entrypoint.sh
+contr__entrypoint__write_entrypoint_file() {
+	setup_runtime_dir contr
+	entrypoint_file=$(create_runtime_file entrypoint/entrypoint) || abort "Failed to write entrypoint file"
+	log_debug "[contr__entrypoint__write_entrypoint_file] writing to file at '${entrypoint_file}'"
+	contr__entrypoint__print_entrypoint_file_ >|"$entrypoint_file" || abort "Failed to write entrypoint file"
+	chmod +x "$entrypoint_file" || abort "Failed to set execute bit on entrypoint file"
+}
+contr__entrypoint__print_entrypoint_file_() {
+	cat <<"EOF_ENTRYPOINT_FILE"
 #!/bin/sh
 # SPDX-License-Identifier: Unlicense
 # entrypoint - contr
@@ -374,60 +560,143 @@ write_entrypoint_file() {
 # This file is part of contr. Do not edit this file. Use the profile
 # file to setup your custom environment.
 #
-SCRIPT_NAME="$(basename "$(realpath "$0")")"
-is_debug="${CONTR_DEBUG:+1}"
 
-log_error() { printf '%s\n' "$*" >&2; }
-log_info() { printf '%s\n' "$*"; }
-log_debug() { [ "$is_debug" ] && printf 'DEBUG entrypoint %s\n' "$*"; }
-abort() {
-	log_error "Error on entrypoint script: $*"
-	exit 1
+# nice_things/log/log.sh 0.2.0
+case "${CONTR_LOG_LEVEL-}" in
+0 | none) nice__log__log__log_is_level() { case "$1" in 0 | none) ;; *) return 1 ;; esac } ;;
+5* | *trace*) nice__log__log__log_is_level() { case "$1" in 0 | none | 1 | error | 2 | warn | 3 | info | 4 | debug | 5 | trace) ;; *) return 1 ;; esac } ;;
+4* | *debug*) nice__log__log__log_is_level() { case "$1" in 0 | none | 1 | error | 2 | warn | 3 | info | 4 | debug) ;; *) return 1 ;; esac } ;;
+2* | *warn*) nice__log__log__log_is_level() { case "$1" in 0 | none | 1 | error | 2 | warn) ;; *) return 1 ;; esac } ;;
+1* | *error*) nice__log__log__log_is_level() { case "$1" in 0 | none | 1 | error) ;; *) return 1 ;; esac } ;;
+*) nice__log__log__log_is_level() { case "$1" in 0 | none | 1 | error | 2 | warn | 3 | info) ;; *) return 1 ;; esac } ;;
+esac
+
+nice__log__log__no_color=
+case "${CONTR_LOG_LEVEL-}" in *no-color*) nice__log__log__no_color=1 ;; *color*) nice__log__log__no_color= ;; esac
+if ! [ -t 2 ] || [ "${NO_COLOR-}" ] || [ "${TERM-}" = dumb ]; then nice__log__log__no_color=1; fi
+
+if [ "$nice__log__log__no_color" ]; then
+	nice__log__log__log_error() { :; } && if nice__log__log__log_is_level 1; then nice__log__log__log_error() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf 'ERROR %s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_warn() { :; } && if nice__log__log__log_is_level 2; then nice__log__log__log_warn() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf 'WARN %s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_info() { :; } && if nice__log__log__log_is_level 3; then nice__log__log__log_info() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf '%s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_debug() { :; } && if nice__log__log__log_is_level 4; then nice__log__log__log_debug() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf 'DEBUG %s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_trace() { :; } && if nice__log__log__log_is_level 5; then nice__log__log__log_trace() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf 'TRACE %s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+else
+	nice__log__log__log_error() { :; } && if nice__log__log__log_is_level 1; then nice__log__log__log_error() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf '\001\033[1;31m\002''ERROR''\001\033[0;31m\002'' %s''\001\033[m\002''\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_warn() { :; } && if nice__log__log__log_is_level 2; then nice__log__log__log_warn() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf '\001\033[1;33m\002''WARN''\001\033[0;33m\002'' %s''\001\033[m\002''\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_info() { :; } && if nice__log__log__log_is_level 3; then nice__log__log__log_info() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf '\001\033[1;32m\002''''\001\033[m\002''%s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_debug() { :; } && if nice__log__log__log_is_level 4; then nice__log__log__log_debug() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf '\001\033[1;36m\002''DEBUG''\001\033[m\002'' %s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+	nice__log__log__log_trace() { :; } && if nice__log__log__log_is_level 5; then nice__log__log__log_trace() { nice__log__log__outer_ifs=$IFS && IFS=' ' && { printf '\001\033[1;35m\002''TRACE''\001\033[m\002'' %s\n' "$*" >&2 || :; } && IFS=$nice__log__log__outer_ifs; }; fi
+fi
+
+log_debug() { nice__log__log__log_debug "$@"; }
+log_is_level() { nice__log__log__log_is_level "$@"; }
+
+# nice_things/log/abort.sh 0.2.0
+nice__log__abort__abort() {
+	# shellcheck disable=SC2319
+	nice__log__abort__status=${2:-$?}
+	[ "$nice__log__abort__status" -gt 0 ] || [ "${2-}" ] || nice__log__abort__status=1
+	case "$(type nice__log__log__log_error 2>/dev/null)" in *function*) (nice__log__log__log_error "${1-}") || : ;; *) (printf '%s\n' "${1-}" >&2) || : ;; esac
+	exit "$nice__log__abort__status"
 }
 
-[ ! -f /run/.containerenv ] && [ ! -f /.dockerenv ] &&
-	abort "It seems we are not in a container. $SCRIPT_NAME is meant to run inside a container."
+abort() { nice__log__abort__abort "$@"; }
 
-if [ "$CONTR_PS1" ]; then
-	if [ "$PS1" != "$CONTR_PS1" ]; then
-		log_debug '[ "PS1" != "CONTR_PS1" ]'
-		export PS1="$CONTR_PS1"
+nice__fs__realpath__log_error() { nice__log__log__log_error "$@"; }
+
+# nice_things/fs/realpath.sh 0.2.0
+# realpath FILE...
+nice__fs__realpath__realpath() {
+	nice__fs__realpath__inexistent_path=
+	while [ $# -gt 0 ]; do
+		nice__fs__realpath__file=${1%"${1##*[!/]}"} # Remove trailing slashes
+		nice__fs__realpath__filename=${nice__fs__realpath__file##*/}
+		case "$nice__fs__realpath__file" in
+		/* | ./* | ../* | "") ;;
+		. | ..) nice__fs__realpath__filename= ;;
+		*) nice__fs__realpath__file="./${nice__fs__realpath__file}" ;;
+		esac
+		nice__fs__realpath__dir=${nice__fs__realpath__file%/*}
+		case "$1" in "" | *[!/]*) nice__fs__realpath__dir=${nice__fs__realpath__dir:-.} ;; *) nice__fs__realpath__dir=/ ;; esac
+		if nice__fs__realpath__real_dir=$(cd "$nice__fs__realpath__dir" 2>/dev/null && pwd -P); then
+			nice__fs__realpath__real_path="${nice__fs__realpath__real_dir}${nice__fs__realpath__filename:+"/${nice__fs__realpath__filename}"}"
+			if [ -h "$nice__fs__realpath__real_path" ]; then
+				(
+					cd "${nice__fs__realpath__real_dir}" &&
+						nice__fs__realpath__link_target=$(command ls -l "$nice__fs__realpath__real_path") &&
+						nice__fs__realpath__link_target=${nice__fs__realpath__link_target#*"${nice__fs__realpath__real_path} -> "} &&
+						nice__fs__realpath__realpath "$nice__fs__realpath__link_target"
+				) || nice__fs__realpath__inexistent_path=1
+			elif [ -e "$nice__fs__realpath__real_path" ]; then
+				printf '%s\n' "$nice__fs__realpath__real_path"
+			else
+				nice__fs__realpath__inexistent_path=1
+				nice__fs__realpath__log_error "[realpath] ${1}: No such file or directory"
+			fi
+		else
+			nice__fs__realpath__inexistent_path=1
+			nice__fs__realpath__log_error "[realpath] ${1}: No such file or directory"
+		fi
+		shift
+	done
+	if [ -n "$nice__fs__realpath__inexistent_path" ]; then
+		unset -v nice__fs__realpath__inexistent_path nice__fs__realpath__file nice__fs__realpath__filename nice__fs__realpath__dir nice__fs__realpath__real_dir nice__fs__realpath__real_path
+		return 1
 	fi
-	which_sh="$(basename "$(realpath "$(command -v sh)")")"
-	if [ "$which_sh" = busybox ]; then
-		log_debug 'Detected busybox, changing value of PS1'
-		# Replace all occurrences of control characters 0x01 and 0x02 with textual escapes \[ and \]
-		CONTR_PS1_BUSYBOX="$(printf '%s' "$CONTR_PS1" | sed -E -e 's/\x01/\\[/g' -e 's/\x02/\\]/g')"
-		export PS1="$CONTR_PS1_BUSYBOX"
-		export CONTR_PS1_BUSYBOX
+	unset -v nice__fs__realpath__inexistent_path nice__fs__realpath__file nice__fs__realpath__filename nice__fs__realpath__dir nice__fs__realpath__real_dir nice__fs__realpath__real_path
+}
+
+realpath() { nice__fs__realpath__realpath "$@"; }
+
+if ! [ -f /run/.containerenv ] && ! [ -f /.dockerenv ]; then
+	abort "It seems we are not in a container. ${0##*/} is meant to run inside a container."
+fi
+
+if [ -n "${CONTR_PS1-}" ]; then
+	if [ "X$PS1" != "X$CONTR_PS1" ]; then
+		log_debug "[entrypoint.sh] [ PS1 != CONTR_PS1 ]"
+		PS1=$CONTR_PS1
 	fi
+	which_sh=$(realpath "$(command -v sh)") && :
+	which_sh=${which_sh##*/}
+	if [ busybox = "$which_sh" ]; then
+		log_debug "[entrypoint.sh] Detected busybox, trying to change value of PS1"
+		PS1=${CONTR_PS1_BUSYBOX:-"$PS1"}
+	fi
+	export PS1
 fi
 # Substitute PS1= with __PS1= in these files so our value is not overwritten
 # Needed for Debian- and Ubuntu-based images
-[ -w /etc/bash.bashrc ] && sed -Ei '/^\s*PS1=/s/PS1=/__&/' /etc/bash.bashrc /etc/profile /root/.bashrc /root/.profile 2>/dev/null
+if [ -w /etc/bash.bashrc ]; then
+	sed -Ei '/^\s*PS1=/s/PS1=/__&/' /etc/bash.bashrc /etc/profile /root/.bashrc /root/.profile 2>/dev/null && :
+fi
 
 # Link to files in /root from HOME
-if [ "$HOME" != /root ]; then
+if [ /root != "$HOME" ]; then
 	for file in /root/.* /root/*; do
 		case "$file" in
-		'/root/.' | '/root/..' | '/root/.*' | '/root/*') ;;
+		"/root/." | "/root/.." | "/root/.*" | "/root/*") ;;
 		*)
-			log_debug "ln -s $file $HOME"
-			ln -s "$file" "$HOME"
+			log_debug "[entrypoint.sh] ln -s ${file} ${HOME}"
+			ln -s "$file" "$HOME" && :
 			;;
 		esac
 	done
 fi
 
 # If HOME is in /var/home or similar, add a link to it in /home
-case "$HOME" in
-/*/home/*)
+case "$HOME" in /*/home/*)
 	mkdir -p /home
-	ln -s "$HOME" "/home/$(basename "$HOME")"
+	ln -s "$HOME" "/home/${HOME##*/}" && :
 	;;
 esac
 
-[ "$is_debug" ] && _dbg= || _dbg='#'
+if log_is_level debug; then
+	_dbg=
+else
+	_dbg='#'
+fi
 export ENV="${HOME}/.profile"
 
 write_profile_files() {
@@ -435,84 +704,75 @@ write_profile_files() {
 		printf "\\n%s printf '~/%s sourcing %s=%s\\\\n'\\n. '%s'\\n" "$_dbg" "$p" "$1" "$2" "$2" >>"${HOME}/$p"
 	done
 }
-[ -f "$CONTR_PROFILE_1" ] && write_profile_files CONTR_PROFILE_1 "$CONTR_PROFILE_1"
-[ -f "$CONTR_PROFILE_2" ] && write_profile_files CONTR_PROFILE_2 "$CONTR_PROFILE_2"
+if [ -f "$CONTR_PROFILE_1" ]; then write_profile_files CONTR_PROFILE_1 "$CONTR_PROFILE_1"; fi
+if [ -f "$CONTR_PROFILE_2" ]; then write_profile_files CONTR_PROFILE_2 "$CONTR_PROFILE_2"; fi
 
-log_debug "\$*=$*"
+log_debug "[entrypoint.sh] \$*=$*"
 if command -v "$1" >/dev/null; then
-	log_debug "\$1='$1' executable"
+	log_debug "[entrypoint.sh] \$1='${1}' executable"
 	exec "$@"
 else
-	log_debug "\$1='$1' non-executable"
-	sh_cmd=$(command -v sh)
-	bash_cmd=$(command -v bash)
-	[ -x "$SHELL" ] && log_debug "SHELL=$SHELL executable"
-	[ ! -x "$SHELL" ] && log_debug "SHELL=$SHELL non-executable"
-	[ ! -x "$SHELL" ] && [ -x "$bash_cmd" ] && SHELL="$bash_cmd"
-	[ ! -x "$SHELL" ] && [ -x /bin/bash ] && SHELL=/bin/bash
-	[ ! -x "$SHELL" ] && [ -x "$sh_cmd" ] && SHELL="$sh_cmd"
-	[ ! -x "$SHELL" ] && [ -x /bin/sh ] && SHELL=/bin/sh
-	[ ! -x "$SHELL" ] && abort "SHELL=$SHELL not executable. Could not find an executable shell"
-	log_debug "SHELL=$SHELL"
+	log_debug "[entrypoint.sh] \$1='${1}' non-executable"
+	sh_cmd=$(command -v sh) && :
+	bash_cmd=$(command -v bash) && :
+	if [ -x "$SHELL" ]; then
+		log_debug "[entrypoint.sh] SHELL=${SHELL} executable"
+	else
+		log_debug "[entrypoint.sh] SHELL=${SHELL} non-executable"
+		if ! [ -x "$SHELL" ] && [ -x "$bash_cmd" ]; then SHELL="$bash_cmd"; fi
+		if ! [ -x "$SHELL" ] && [ -x /usr/bin/bash ]; then SHELL=/usr/bin/bash; fi
+		if ! [ -x "$SHELL" ] && [ -x /bin/bash ]; then SHELL=/bin/bash; fi
+		if ! [ -x "$SHELL" ] && [ -x "$sh_cmd" ]; then SHELL="$sh_cmd"; fi
+		if ! [ -x "$SHELL" ] && [ -x /usr/bin/sh ]; then SHELL=/usr/bin/sh; fi
+		if ! [ -x "$SHELL" ] && [ -x /bin/sh ]; then SHELL=/bin/sh; fi
+		[ -x "$SHELL" ] || abort "SHELL=${SHELL} not executable. Could not find an executable shell"
+		log_debug "[entrypoint.sh] SHELL=${SHELL} selected"
+	fi
 	exec $SHELL
 fi
+
 EOF_ENTRYPOINT_FILE
-	}
-
-	log_debug "write_entrypoint_file() writing to file at '$1'"
-	mkdir -p "$(dirname "$1")"
-	print_entrypoint_file >"$1"
-	chmod +x "$1"
 }
 
-set_cwd_mode() {
-	case "$1" in
-	0) cwd_mode= ;;
-	4) cwd_mode=ro ;;
-	5) cwd_mode=ro,exec ;;
-	6) cwd_mode=rw ;;
-	7) cwd_mode=rw,exec ;;
-	*) cwd_mode="$1" ;;
-	esac
-	log_debug "set_cwd_mode() cwd_mode=$cwd_mode"
-}
+write_entrypoint_file() { contr__entrypoint__write_entrypoint_file "$@"; }
 
+# options.sh
 # Add 127.0.0.1 as bind address to published ports unless an address is explicitly set
 # For ports 1024 and above, bind container ports to the same port number on the host if not specified
-make_publish_local_only() {
-	opt_arg="${1#'--publish='}"
-	opt_arg="${opt_arg#'-p='}"
-	opt_flag= && [ "$opt_arg" != "$1" ] && opt_flag='--publish='
+contr__options__make_publish_local_only() {
+	contr__options__opt_arg="${1#'--publish='}"
+	contr__options__opt_arg="${contr__options__opt_arg#'-p='}"
+	contr__options__opt_flag= && [ "X$contr__options__opt_arg" != "X$1" ] && contr__options__opt_flag='--publish='
 
 	print_arg() {
-		if [ "$2" -ge "${ip_unprivileged_port_start:-0}" ]; then
-			printf '%s%s:%s:%s' "$opt_flag" "$1" "${3:-"$2"}" "$2"
+		if [ "${ip_unprivileged_port_start:-0}" -le "$2" ]; then
+			printf '%s%s:%s:%s' "$contr__options__opt_flag" "$1" "${3:-"$2"}" "$2"
 		else
-			printf '%s%s:%s:%s' "$opt_flag" "$1" "${3:-}" "$2"
+			printf '%s%s:%s:%s' "$contr__options__opt_flag" "$1" "${3:-}" "$2"
 		fi
 	}
 	case "$1" in
 	*.*.*.*::*) # arg is an IP address and a container port
-		container_port="${opt_arg##*:}"
-		ip_address="${opt_arg%%::*}"
-		print_arg "$ip_address" "$container_port"
+		contr__options__container_port="${contr__options__opt_arg##*:}"
+		contr__options__ip_address="${contr__options__opt_arg%%::*}"
+		print_arg "$contr__options__ip_address" "$contr__options__container_port"
 		;;
 	*.*.*.*:*:*) printf '%s' "$1" ;; # arg is an IP address and a pair of host:container ports, ignore
 	*:*)                             # arg is a pair of host:container ports
-		container_port="${opt_arg##*:}"
-		host_port="${opt_arg%%:*}"
-		print_arg '127.0.0.1' "$container_port" "$host_port"
+		contr__options__container_port="${contr__options__opt_arg##*:}"
+		contr__options__host_port="${contr__options__opt_arg%%:*}"
+		print_arg '127.0.0.1' "$contr__options__container_port" "$contr__options__host_port"
 		;;
-	*) print_arg '127.0.0.1' "$opt_arg" ;; # If there are no colons, arg is only a container port number
+	*) print_arg '127.0.0.1' "$contr__options__opt_arg" ;; # If there are no colons, arg is only a container port number
 	esac
+	unset -v contr__options__opt_arg contr__options__opt_flag contr__options__container_port contr__options__ip_address contr__options__host_port
 }
-
 # Add noexec option to a volume definition unless an exec mode is explicitly set
-make_volume_noexec() {
+contr__options__make_volume_noexec() {
 	case "$1" in
 	*:*)
-		volume_opts="${1##*:}"
-		case "$volume_opts" in
+		contr__options__volume_opts="${1##*:}"
+		case "$contr__options__volume_opts" in
 		*/*) printf '%s' "${1}:noexec" ;; # Slashes mean the last component is a path, there are no options
 		*exec*) printf '%s' "$1" ;;       # exec/noexec already present, don't change anything
 		*) printf '%s' "${1},noexec" ;;   # Add noexec to options list
@@ -524,78 +784,111 @@ make_volume_noexec() {
 		printf '%s' "$1"
 		;;
 	esac
+	unset -v contr__options__volume_opts
+}
+contr__options__set_cwd_mode() {
+	case "$1" in
+	0) cwd_mode= ;;
+	4) cwd_mode=ro ;;
+	5) cwd_mode=ro,exec ;;
+	6) cwd_mode=rw ;;
+	7) cwd_mode=rw,exec ;;
+	*) cwd_mode="$1" ;;
+	esac
+	log_debug "[contr__options__set_cwd_mode] cwd_mode=$cwd_mode"
 }
 
-get_persistence_volume_specifier_() {
-	mount_specifier_=$1
-	case "$mount_specifier_" in "~" | "~"[/:]*) mount_specifier_="home${mount_specifier_#"~"}" ;; esac
-	case "$mount_specifier_" in
+make_publish_local_only() { contr__options__make_publish_local_only "$@"; }
+make_volume_noexec() { contr__options__make_volume_noexec "$@"; }
+set_cwd_mode() { contr__options__set_cwd_mode "$@"; }
+
+# image.sh
+# get_label IMAGE LABEL
+# Print the value of a Label from a container image
+contr__image__get_label() {
+	podman image inspect --format "{{index .Config.Labels \"${2}\"}}" "$1"
+}
+contr__image__pull_if_missing() {
+	podman image exists "$1" && :
+	contr__image__status=$?
+	if [ "$contr__image__status" -eq 125 ]; then
+		abort "Podman error trying to access local image storage. podman-image-exists returned code 125"
+	elif [ "$contr__image__status" -ne 0 ]; then
+		podman image pull "$1" || abort "Image '${1}' does not exist and Podman failed to pull a new image"
+	fi
+}
+
+get_label() { contr__image__get_label "$@"; }
+
+# persist.sh
+contr__persist__get_persistence_volume_specifier_() {
+	contr__persist__mount_specifier_=$1
+	case "$contr__persist__mount_specifier_" in "~" | "~"[/:]*) contr__persist__mount_specifier_="home${contr__persist__mount_specifier_#"~"}" ;; esac
+	case "$contr__persist__mount_specifier_" in
 	*:ro | *:ro,exec | *:ro,noexec | *:exec,ro | *:noexec,ro) return 4 ;;
 	*:exec | *:noexec | *:rw,exec | *:rw,noexec | *:exec,rw | *:noexec,rw) ;;
-	*:r[ow]) mount_specifier_="${mount_specifier_},noexec" ;;
-	*) mount_specifier_="${mount_specifier_}:noexec" ;;
+	*:rw) contr__persist__mount_specifier_="${contr__persist__mount_specifier_},noexec" ;;
+	*) contr__persist__mount_specifier_="${contr__persist__mount_specifier_}:noexec" ;;
 	esac
-	case "$mount_specifier_" in home | home[/:]*) volume_home= ;; esac
-	mount_point_=$mount_specifier_
-	case "$mount_point_" in
-	home | home[/:]*) mount_point_="${HOME}${mount_point_#home}" ;;
+	# shellcheck disable=SC2034
+	case "$contr__persist__mount_specifier_" in home | home[/:]*) volume_home= ;; esac
+	contr__persist__mount_point_=$contr__persist__mount_specifier_
+	case "$contr__persist__mount_point_" in
+	home | home[/:]*) contr__persist__mount_point_="${HOME}${contr__persist__mount_point_#home}" ;;
 	/*) ;;
 	*) return 3 ;;
 	esac
-	volume_name_=$(substitute_characters "${mount_specifier_%:*}" '/' '__')
-	volume_name_="contr-persist.$(sanitize_for_fs "$image_name").$(sanitize_for_fs "$volume_name_")"
-	volume_specifier="${volume_name_}:${mount_point_}"
+	contr__persist__volume_name_=$(substitute_characters "${contr__persist__mount_specifier_%:*}" '/' '__')
+	contr__persist__volume_name_="contr-persist.$(sanitize_for_fs "$2").$(sanitize_for_fs "$contr__persist__volume_name_")"
+	contr__persist__volume_specifier="${contr__persist__volume_name_}:${contr__persist__mount_point_}"
+	unset -v contr__persist__mount_specifier_ contr__persist__mount_point_ contr__persist__volume_name_
 }
-
-create_persistence_volumes() {
-	persist_label=$(get_label "$image" page.codeberg.contr.persist)
-	outer_ifs=$IFS
+contr__persist__add_cli_persistence_volume() {
+	contr__persist__get_persistence_volume_specifier_ "$1" "$2" && :
+	contr__persist__status=$?
+	if [ "$contr__persist__status" -eq 3 ]; then
+		abort "Error in --persist=${1} option. Persistent mounts must be absolute paths, or relative to [~ | home]"
+	elif [ "$contr__persist__status" -eq 4 ]; then
+		abort "Error in --persist=${1} option. Persistent mounts can not be read-only"
+	elif [ "$contr__persist__status" -gt 0 ]; then
+		abort "Unknown error in --persist=${1} option"
+	fi
+	cli_persistence_volumes=$(list $cli_persistence_volumes --volume="$contr__persist__volume_specifier")
+	unset -v contr__persist__status contr__persist__volume_specifier
+}
+contr__persist__create_persistence_volumes() {
+	contr__persist__persist_label=$(get_label "$1" page.codeberg.contr.persist)
+	contr__persist__outer_ifs=$IFS
 	IFS='	'
-	for mount_specifier in $persist_label; do
-		IFS=$outer_ifs
-		get_persistence_volume_specifier_ "$mount_specifier" && :
-		status=$?
-		if [ "$status" -eq 3 ]; then
-			abort "Error in image's 'page.codeberg.contr.persist' label. Persistent mounts must be absolute paths, or relative to [~ | home]. Incorrect path is '${mount_specifier}'"
-		elif [ "$status" -eq 4 ]; then
-			abort "Error in image's 'page.codeberg.contr.persist' label. Persistent mounts can not be read-only. Incorrect path is '${mount_specifier}'"
-		elif [ "$status" -gt 0 ]; then
-			abort "Unknown error in image's 'page.codeberg.contr.persist' label. Incorrect path is '${mount_specifier}'"
+	for contr__persist__mount_specifier in $contr__persist__persist_label; do
+		IFS=$contr__persist__outer_ifs
+		contr__persist__get_persistence_volume_specifier_ "$contr__persist__mount_specifier" "$2" && :
+		contr__persist__status=$?
+		if [ "$contr__persist__status" -eq 3 ]; then
+			abort "Error in image's 'page.codeberg.contr.persist' label. Persistent mounts must be absolute paths, or relative to [~ | home]. Incorrect path is '${contr__persist__mount_specifier}'"
+		elif [ "$contr__persist__status" -eq 4 ]; then
+			abort "Error in image's 'page.codeberg.contr.persist' label. Persistent mounts can not be read-only. Incorrect path is '${contr__persist__mount_specifier}'"
+		elif [ "$contr__persist__status" -gt 0 ]; then
+			abort "Unknown error in image's 'page.codeberg.contr.persist' label. Incorrect path is '${contr__persist__mount_specifier}'"
 		fi
-		image_persistence_volumes="${image_persistence_volumes}--volume=${volume_specifier}
-"
+		image_persistence_volumes=$(list $image_persistence_volumes --volume="$contr__persist__volume_specifier")
 	done
-	IFS=$outer_ifs
-	log_debug "[create_persistence_volumes] image_persistence_volumes=[${image_persistence_volumes}]"
+	IFS=$contr__persist__outer_ifs
+	log_debug "[contr__persist__create_persistence_volumes] image_persistence_volumes=[${image_persistence_volumes}]"
+	unset -v contr__persist__persist_label contr__persist__outer_ifs contr__persist__mount_specifier contr__persist__status contr__persist__volume_specifier
 }
 
-add_cli_persistence_volume() {
-	mount_specifier=$1
-	get_persistence_volume_specifier_ "$mount_specifier" && :
-	status=$?
-	if [ "$status" -eq 3 ]; then
-		abort "Error in --persist=${mount_specifier} option. Persistent mounts must be absolute paths, or relative to [~ | home]"
-	elif [ "$status" -eq 4 ]; then
-		abort "Error in --persist=${mount_specifier} option. Persistent mounts can not be read-only"
-	elif [ "$status" -gt 0 ]; then
-		abort "Unknown error in --persist=${mount_specifier} option"
-	fi
-	cli_persistence_volumes="${cli_persistence_volumes}--volume=${volume_specifier}
-"
-}
+add_cli_persistence_volume() { contr__persist__add_cli_persistence_volume "$@"; }
+create_persistence_volumes() { contr__persist__create_persistence_volumes "$@"; }
 
-pull_image_if_missing() {
-	podman image exists "$image" && :
-	status=$?
-	if [ "$status" -eq 125 ]; then
-		abort "Podman error trying to access local image storage. podman-image-exists returned code 125"
-	elif [ "$status" -ne 0 ]; then
-		podman image pull "$image" || abort "Image '${image}' does not exist and Podman failed to pull a new image"
-	fi
-}
+pull_if_missing() { contr__image__pull_if_missing "$@"; }
 
-initialize_run_variables() {
+# podman_run.sh
+contr__podman_run__initialize_run_variables() {
+	contr__podman_run__workdir=$(pwd)
 	user_home="$HOME"
+	entrypoint_file=
+	use_entrypoint_file=1
 	volume_home=1
 	cwd_mode='rw,exec'
 	image_persistence_volumes=
@@ -603,45 +896,42 @@ initialize_run_variables() {
 
 	is_tty=
 	CONTR_PS1=
+	CONTR_PS1_BUSYBOX=
 	if [ -t 0 ]; then
 		is_tty=1
-		xterm_title=$(printf '\001\033]2;\w — contr ⬢ %s\a\002' "$image")
+		xterm_title=
+		if [ dumb != "${TERM-}" ]; then
+			# shellcheck disable=SC2154
+			xterm_title=$(printf '\001\033]2;\w — contr ⬢ %s\a\002' "$image")
+		fi
 		CONTR_PS1="$(printf '%s\n\001\033[1;36m\002\w\001\033[m\002 — contr \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "$xterm_title" "$image")"
+		# Replace all occurrences of control characters 0x01 and 0x02 with textual escapes \[ and \]
+		CONTR_PS1_BUSYBOX=$(substitute_characters "$CONTR_PS1" "$(printf '\001')" '\[')
+		CONTR_PS1_BUSYBOX=$(substitute_characters "$CONTR_PS1_BUSYBOX" "$(printf '\002')" '\]')
 	fi
 
+	user_id=$(id -u) || log_warn "Failed to get user id. Is the 'id' utility installed?"
 	ip_unprivileged_port_start=1024
-	if [ "$USER_ID" = 0 ]; then
+	if [ 0 = "$user_id" ]; then
 		# if running as root, ignore 'ip_unprivileged_port_start'
 		ip_unprivileged_port_start=
 	elif command -v sysctl >/dev/null; then
 		ip_unprivileged_port_start="$(sysctl net.ipv4.ip_unprivileged_port_start)" # net.ipv4.ip_unprivileged_port_start = 1024
 		ip_unprivileged_port_start="${ip_unprivileged_port_start##*[!0-9]}"
 	fi
-	log_debug "initialize_run_variables() ip_unprivileged_port_start=$ip_unprivileged_port_start"
+	log_debug "[contr__podman_run__initialize_run_variables] ip_unprivileged_port_start=$ip_unprivileged_port_start"
 }
 
-main() {
-	read_arguments "$@"
-	check_dependencies cat grep mkdir
-	set_config_files
-
-	if [ "$action" = 'make-config' ]; then
-		write_config_files "$config_dir"
-		exit
-	elif [ "$action" = 'make-config-per-image' ]; then
-		write_config_files "$per_image_config_dir"
-		exit
-	fi
-
-	# From here on we assume the default action = 'podman-run'
-	check_dependencies cat chmod grep mkdir podman
-	initialize_run_variables
-	pull_image_if_missing
-	create_persistence_volumes
+contr__podman_run__podman_run() {
+	check_dependencies chmod grep mkdir podman
+	contr__podman_run__initialize_run_variables
+	pull_if_missing "$image"
+	# shellcheck disable=SC2154
+	create_persistence_volumes "$image" "$image_short_name"
 
 	# Read options from command line
 	while :; do
-		log_debug "main() option '$1'"
+		log_debug "[contr__podman_run__podman_run] option '$1'"
 		case "$1" in
 		-n) ;;
 		--cwd-mode | --cwd-mode=) missing_opt_arg "$1" ;;
@@ -651,7 +941,7 @@ main() {
 		--no-persist) image_persistence_volumes= ;;
 		--persist | --persist=) missing_opt_arg "$1" ;;
 		--persist=*)
-			add_cli_persistence_volume "${1#'--persist='}"
+			add_cli_persistence_volume "${1#'--persist='}" "$image_short_name"
 			;;
 		-[04567] | -n[04567] | -[04567]n)
 			opt="${1%n}"
@@ -659,19 +949,19 @@ main() {
 			set_cwd_mode "${opt#"$pad"}"
 			;;
 		--pio)
-			[ "$per_image_environment_file" ] && environment_file=
-			[ "$per_image_options_file" ] && options_file=
-			[ "$per_image_profile_file" ] && profile_file=
+			if [ -n "$per_image_environment_file" ]; then environment_file=; fi
+			if [ -n "$per_image_options_file" ]; then options_file=; fi
+			if [ -n "$per_image_profile_file" ]; then profile_file=; fi
 			;;
 		--plain)
 			user_home=
-			entrypoint_file=
+			use_entrypoint_file=
 			profile_file=
 			per_image_profile_file=
 			;;
 		--pure)
 			user_home=
-			entrypoint_file=
+			use_entrypoint_file=
 			environment_file=
 			options_file=
 			profile_file=
@@ -685,14 +975,18 @@ main() {
 		shift                                # Remove option from arguments list
 		image_arg_pos=$((image_arg_pos - 1)) # Decrement image position in arguments list
 	done
-	log_debug "main() \$*=$*"
-	log_debug "[add_cli_persistence_volume] cli_persistence_volumes=[${cli_persistence_volumes}]"
-	[ ! "$cwd_mode" ] && [ ! "$user_home" ] && volume_home=
-	[ "$cwd_mode" ] && [ "$HOME" = "$PWD" ] && abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
+	log_debug "[contr__podman_run__podman_run] \$*=$(to_string "$@")"
+	log_debug "[contr__podman_run__podman_run] cli_persistence_volumes=[${cli_persistence_volumes}]"
+	if [ -z "$cwd_mode" ] && [ -z "$user_home" ]; then
+		volume_home=
+	fi
+	if [ -n "$cwd_mode" ] && [ "X$HOME" = "X$contr__podman_run__workdir" ]; then
+		abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
+	fi
 
 	# Read podman options from file
-	if [ "$options_file" ]; then
-		while IFS= read -r line || [ "$line" ]; do
+	if [ -n "$options_file" ]; then
+		while IFS= read -r line || [ -n "$line" ]; do
 			case "$line" in
 			\#*) ;; # Ignore comments
 			-*)
@@ -701,12 +995,12 @@ main() {
 				;;
 			esac
 		done <"$options_file"
-		log_debug "main() \$*=$*"
+		log_debug "[contr__podman_run__podman_run] \$*=$(to_string "$@")"
 	fi
 
 	# Read per-image podman options from file
-	if [ "$per_image_options_file" ]; then
-		while IFS= read -r line || [ "$line" ]; do
+	if [ -n "$per_image_options_file" ]; then
+		while IFS= read -r line || [ -n "$line" ]; do
 			case "$line" in
 			\#*) ;; # Ignore comments
 			-*)
@@ -715,15 +1009,15 @@ main() {
 				;;
 			esac
 		done <"$per_image_options_file"
-		log_debug "main() \$*=$*"
+		log_debug "[contr__podman_run__podman_run] \$*=$(to_string "$@")"
 	fi
 
 	# Change Podman options arguments to override Podman's defaults with ours
-	log_debug "main() image_arg_pos=$image_arg_pos"
-	argc="$#"
+	log_debug "[contr__podman_run__podman_run] image_arg_pos=$image_arg_pos"
+	argc=$#
 	i=1
 	while [ "$i" -le "$argc" ]; do
-		opt="$1"
+		opt=$1
 		shifts=1
 		opt_arg=
 		if [ "$i" -lt "$image_arg_pos" ]; then
@@ -757,29 +1051,33 @@ main() {
 		shift "$shifts"                           # Remove argument(s) from the beginning of arguments list
 		i=$((i + shifts))
 	done
-	log_debug "main() \$*=$*"
-	[ "$argc" = "$#" ] || abort "Error processing arguments. We should have $argc arguments but got $# instead"
+	log_debug "[contr__podman_run__podman_run] \$*=$(to_string "$@")"
+	[ $# = "$argc" ] || abort "Error processing arguments. We should have $argc arguments but got $# instead"
 
-	[ "$entrypoint_file" ] && write_entrypoint_file "$entrypoint_file"
+	if [ -n "$use_entrypoint_file" ]; then
+		write_entrypoint_file
+	fi
 
 	# shellcheck disable=SC2086
-	exec podman run -i ${is_tty:+-t} --rm \
+	command podman run -i ${is_tty:+-t} --rm \
 		--tz=local \
 		--security-opt=label=disable \
 		--group-add=keep-groups \
 		--user="0:0" \
 		--pull=never \
-		--env=CONTR_DEBUG \
+		--env=CONTR_LOG_LEVEL \
 		${volume_home:+"--volume=$HOME"} \
-		${cwd_mode:+"--volume=${PWD}:${PWD}:$cwd_mode"} \
-		${cwd_mode:+"--workdir=$PWD"} \
-		${CONTR_PS1:+"--env=PS1=$CONTR_PS1" "--env=CONTR_PS1=$CONTR_PS1"} \
+		${cwd_mode:+"--volume=${contr__podman_run__workdir}:${contr__podman_run__workdir}:$cwd_mode"} \
+		${cwd_mode:+"--workdir=$contr__podman_run__workdir"} \
+		${CONTR_PS1:+"--env=PS1=$CONTR_PS1"} \
+		${CONTR_PS1:+"--env=CONTR_PS1=$CONTR_PS1"} \
+		${CONTR_PS1_BUSYBOX:+"--env=CONTR_PS1_BUSYBOX=$CONTR_PS1_BUSYBOX"} \
 		${block_network:+"--network=none"} \
 		${user_home:+"--env=HOME=$user_home"} \
 		${environment_file:+"--env-file=$environment_file"} \
 		${per_image_environment_file:+"--env-file=$per_image_environment_file"} \
 		${entrypoint_file:+"--volume=${entrypoint_file}:/run/contr/entrypoint:ro,exec"} \
-		${entrypoint_file:+"--entrypoint=/run/contr/entrypoint"} \
+		${entrypoint_file:+"--entrypoint=[\"/run/contr/entrypoint\"]"} \
 		${entrypoint_file:+"--env=CONTR_IMAGE=$image"} \
 		${profile_file:+"--volume=${profile_file}:/run/contr/profile1:ro,noexec"} \
 		${profile_file:+"--env=CONTR_PROFILE_1=/run/contr/profile1"} \
@@ -790,4 +1088,129 @@ main() {
 		"$@"
 }
 
-main "$@"
+podman_run() { contr__podman_run__podman_run "$@"; }
+
+# main.sh
+contr__main__usage() {
+	fd=${1:+2}
+	if [ -n "${2-}" ]; then log_error "$2"; fi
+	contr__main__usage_podman_options=${3-"  -*                       Any option for the podman-run command. Run 'contr --help-all' for a full list of options"}
+	contr__main__usage_podman_options=${contr__main__usage_podman_options:-"  Failed to get Podman options, check if Podman is installed correctly"}
+
+	cat <<EOF >&"${fd:-1}"
+contr 0.8.0
+Run container exposing the current working directory
+
+Usage:
+  contr [OPTION...] [--] [PODMAN OPTIONS...] IMAGE [COMMAND [ARG...]]
+  contr --make-config[=IMAGE]
+
+Options:
+  --make-config[=IMAGE]    Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
+  --cwd-mode=(0|4|5|6|7),
+  --cwd-mode={ro,rw,exec}  The permission mode for mounting the current working directory inside the container. If set to 0, CWD will not be mounted inside the container. Numbers 4-7 have the same meanings as in chmod's octal values. Short flags exist for the octal form, as follows:
+  -0                       Do not mount the current working directory inside the container '--cwd-mode=0'
+  -4                       Mount the current working directory with read-only permissions '--cwd-mode=ro'
+  -5                       Mount the current working directory with read and execute permissions '--cwd-mode=ro,exec'
+  -6                       Mount the current working directory with read and write permissions '--cwd-mode=rw'
+  -7                       Mount the current working directory with read, write and execute permissions (default) '--cwd-mode=rw,exec'
+  -n                       Allow network access
+  --no-persist             Override "page.codeberg.contr.persist" label from image, canceling its mount points
+  --persist=PATH[:exec]    Create a mount point at PATH to persist its data across invocations. PATH must be absolute or relative to [~ | home]
+  --pio                    Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
+  --plain                  Do not override the image's entrypoint script
+  --pure                   Ignore all configuration files and custom entrypoint
+  --help                   Print this help text and exit
+  --help-all               Print this help text with all options to podman-run included and exit
+
+Podman options:
+$contr__main__usage_podman_options
+
+Environment variables:
+  CONTR_CONFIG_DIR   Configuration directory. Defaults to \$XDG_CONFIG_HOME/contr or ~/.config/contr
+  CONTR_RUNTIME_DIR  Runtime directory. Defaults to \$XDG_RUNTIME_DIR/contr or /run/user/\$UID/contr or /tmp/contr
+  CONTR_LOG_LEVEL    Log verbosity between 0-5 where 0 is silent (default 3), also recognizes levels by name, and supports a comma separated list of options: [0|none] | [error|warn|info|debug|trace],[color|no-color]
+  NO_COLOR           Same as CONTR_LOG_LEVEL=no-color (for conformance with the NO_COLOR standard)
+
+Examples:
+  contr alpine
+  contr --make-config=amazon/aws-cli
+  contr -n amazon/aws-cli aws --version
+  contr -n -p 3000 node:alpine npm run dev -- --host 0.0.0.0
+EOF
+	exit ${1:+"$1"}
+}
+
+missing_opt_arg() { abort "Missing argument for option ${1}. Run contr --help"; }
+
+contr__main__read_arguments() {
+	if log_is_level debug; then
+		log_debug "[contr__main__read_arguments] \$*=$(to_string "$@")"
+	fi
+	block_network=1
+	image=
+	action=podman-run
+
+	case "${1-}" in
+	--make-config=*) action=make-config-per-image && image=${1#"--make-config="} ;;
+	--make-config) action=make-config ;;
+	--help) contr__main__usage ;;
+	--help-all)
+		# shellcheck disable=SC2154
+		contr__main__usage '' '' "$podman_run_options"
+		;;
+	esac
+
+	if [ podman-run = "$action" ]; then
+		# shellcheck disable=SC2154
+		log_debug "[contr__main__read_arguments] length podman_options_with_arg=$(length $podman_options_with_arg)"
+		if log_is_level trace; then
+			log_trace "[contr__main__read_arguments] podman_options_with_arg=$(to_string $podman_options_with_arg)"
+		fi
+		i=0
+		last_flag=
+		for arg in "$@"; do
+			i=$((i + 1))
+			case "$arg" in -n | -n[04567] | -[04567]n | --net | --net=* | --network | --network=*)
+				# shellcheck disable=SC2034
+				block_network=
+				;;
+			esac
+			case "$arg" in
+			-*) last_flag=$arg ;;
+			*)
+				if is_podman_option_with_arg "$last_flag"; then
+					last_flag=
+				else
+					# shellcheck disable=SC2034
+					image_arg_pos="$i"
+					image="$arg"
+					break
+				fi
+				;;
+			esac
+		done
+		[ -n "$image" ] || abort "An image must be provided. Run contr --help"
+	fi
+
+	image_short_name=${image#*://}
+	case "$image_short_name" in
+	localhost/[a-z0-9]*) image_short_name=${image_short_name#localhost/} ;;
+	docker.io/library/[a-z0-9]*) image_short_name=${image_short_name#docker.io/library/} ;;
+	*.*/[a-z0-9]*) image_short_name=${image_short_name#*.*/} ;;
+	esac
+	image_short_name=${image_short_name%%:*}
+	log_debug "[contr__main__read_arguments] image='${image}' image_short_name='${image_short_name}'"
+}
+
+contr__main__read_arguments "$@"
+check_dependencies grep mkdir
+set_config_files
+
+if [ make-config = "$action" ]; then
+	write_config_files
+elif [ make-config-per-image = "$action" ]; then
+	write_config_files 1
+else # Default action is podman-run
+	podman_run "$@"
+fi
