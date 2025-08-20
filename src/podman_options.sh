@@ -37,7 +37,7 @@ readonly NS__podman_options_with_arg
 NS__is_podman_option_with_arg() {
 	case "$1" in "" | [!-]*) return 1 ;; esac
 	for NS__podman_option in --net $NS__podman_options_with_arg; do
-		if [ "X$NS__podman_option" = "X$1" ]; then return 0; fi
+		if [ "$NS__podman_option" = "$1" ]; then return 0; fi
 	done
 	return 1
 }

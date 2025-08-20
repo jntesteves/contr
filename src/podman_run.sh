@@ -107,7 +107,7 @@ NS__podman_run() {
 	if [ -z "$cwd_mode" ] && [ -z "$user_home" ]; then
 		volume_home=
 	fi
-	if [ -n "$cwd_mode" ] && [ "X$HOME" = "X$NS__workdir" ]; then
+	if [ -n "$cwd_mode" ] && [ "$HOME" = "$NS__workdir" ]; then
 		abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
 	fi
 

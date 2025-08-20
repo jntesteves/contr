@@ -12,7 +12,7 @@ public \
 NS__make_publish_local_only() {
 	NS__opt_arg="${1#'--publish='}"
 	NS__opt_arg="${NS__opt_arg#'-p='}"
-	NS__opt_flag= && [ "X$NS__opt_arg" != "X$1" ] && NS__opt_flag='--publish='
+	NS__opt_flag= && [ "$NS__opt_arg" != "$1" ] && NS__opt_flag='--publish='
 
 	print_arg() {
 		if [ "${ip_unprivileged_port_start:-0}" -le "$2" ]; then

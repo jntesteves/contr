@@ -16,7 +16,8 @@ if ! [ -f /run/.containerenv ] && ! [ -f /.dockerenv ]; then
 fi
 
 if [ -n "${CONTR_PS1-}" ]; then
-	if [ "X$PS1" != "X$CONTR_PS1" ]; then
+	# shellcheck disable=SC2268
+	if [ x"$PS1" != x"$CONTR_PS1" ]; then
 		log_debug "[entrypoint.sh] [ PS1 != CONTR_PS1 ]"
 		PS1=$CONTR_PS1
 	fi
