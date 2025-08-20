@@ -7,6 +7,7 @@ import \
 	./src/util.sh \
 	"{ length, to_string, list, list_from }" from nice_things/collections/native_list.sh \
 	"{ cat }" from nice_things/io/cat.sh \
+	"{ OptionsParser, OptionsParser_optCount, OptionsParser_endOptions, OptionsParser_hasOptArg, OptionsParser_destructor }" from nice_things/cli/OptionsParser.sh \
 	"{ set_config_files, write_config_files }" from ./src/config_files.sh \
 	"{ readonly:podman_run_options, readonly:podman_options_with_arg, is_podman_option_with_arg }" from ./src/podman_options.sh \
 	"{ podman_run }" from ./src/podman_run.sh
@@ -62,58 +63,42 @@ EOF
 	exit ${1:+"$1"}
 }
 
-missing_opt_arg() { abort "Missing argument for option ${1}. Run contr --help"; }
-
-NS__read_arguments() {
-	if log_is_level debug; then
-		log_debug "[NS__read_arguments] \$*=$(to_string "$@")"
-	fi
-	block_network=1
-	image=
-	action=podman-run
-
-	case "${1-}" in
-	--make-config=*) action=make-config-per-image && image=${1#"--make-config="} ;;
-	--make-config) action=make-config ;;
+image_arg_pos=
+image=
+image_short_name=
+action=podman-run
+NS__parse_option() {
+	case "$2" in
+	--make-config)
+		action=make-config
+		if [ -n "${3+1}" ]; then
+			image=$3
+			OptionsParser_hasOptArg "$1"
+		fi
+		OptionsParser_endOptions "$1"
+		;;
 	--help) NS__usage ;;
 	--help-all)
 		# shellcheck disable=SC2154
 		NS__usage '' '' "$podman_run_options"
 		;;
-	esac
-
-	if [ podman-run = "$action" ]; then
-		# shellcheck disable=SC2154
-		log_debug "[NS__read_arguments] length podman_options_with_arg=$(length $podman_options_with_arg)"
-		if log_is_level trace; then
-			log_trace "[NS__read_arguments] podman_options_with_arg=$(to_string $podman_options_with_arg)"
+	*)
+		if is_podman_option_with_arg "$2"; then
+			OptionsParser_hasOptArg "$1" 1
 		fi
-		i=0
-		last_flag=
-		for arg in "$@"; do
-			i=$((i + 1))
-			case "$arg" in -n | -n[04567] | -[04567]n | --net | --net=* | --network | --network=*)
-				# shellcheck disable=SC2034
-				block_network=
-				;;
-			esac
-			case "$arg" in
-			-*) last_flag=$arg ;;
-			*)
-				if is_podman_option_with_arg "$last_flag"; then
-					last_flag=
-				else
-					# shellcheck disable=SC2034
-					image_arg_pos="$i"
-					image="$arg"
-					break
-				fi
-				;;
-			esac
-		done
-		[ -n "$image" ] || abort "An image must be provided. Run contr --help"
-	fi
+		;;
+	esac
+}
 
+NS__set_image() {
+	if [ make-config != "$action" ]; then
+		NS__shifts_=$(OptionsParser_optCount contr_main)
+		shift "$NS__shifts_" || exit
+		[ -n "${1-}" ] || abort "An image must be provided. Run contr --help"
+		# shellcheck disable=SC2034
+		image_arg_pos=$((NS__shifts_ + 1))
+		image=$1
+	fi
 	image_short_name=${image#*://}
 	case "$image_short_name" in
 	localhost/[a-z0-9]*) image_short_name=${image_short_name#localhost/} ;;
@@ -121,17 +106,27 @@ NS__read_arguments() {
 	*.*/[a-z0-9]*) image_short_name=${image_short_name#*.*/} ;;
 	esac
 	image_short_name=${image_short_name%%:*}
-	log_debug "[NS__read_arguments] image='${image}' image_short_name='${image_short_name}'"
+	log_debug "[NS__set_image] image='${image}' image_short_name='${image_short_name}' image_arg_pos='${image_arg_pos}'"
+	unset -v NS__shifts_
 }
 
-NS__read_arguments "$@"
+# shellcheck disable=SC2154
+log_debug "[NS__main] length podman_options_with_arg=$(length $podman_options_with_arg)"
+if log_is_level trace; then
+	log_trace "[NS__main] podman_options_with_arg=$(to_string $podman_options_with_arg)"
+fi
+OptionsParser contr_main NS__parse_option "$@"
+NS__set_image "$@"
+OptionsParser_destructor contr_main
 check_dependencies grep mkdir
 set_config_files
 
 if [ make-config = "$action" ]; then
-	write_config_files
-elif [ make-config-per-image = "$action" ]; then
-	write_config_files 1
+	if [ -n "$image" ]; then
+		write_config_files 1
+	else
+		write_config_files
+	fi
 else # Default action is podman-run
 	podman_run "$@"
 fi
