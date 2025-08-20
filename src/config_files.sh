@@ -62,7 +62,7 @@ NS__set_config_files() {
 	fi
 }
 NS__write_config_files() {
-	if [ "$1" ]; then
+	if [ "${1-}" ]; then
 		set -- "$per_image_config_dir"
 	else
 		set -- "$config_dir"
