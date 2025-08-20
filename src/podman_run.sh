@@ -146,7 +146,7 @@ NS__podman_run() {
 	while [ "$i" -le "$argc" ]; do
 		opt=$1
 		shifts=1
-		opt_arg=
+		unset -v opt_arg
 		if [ "$i" -lt "$image_arg_pos" ]; then
 			log_debug "${i}: $opt"
 			case "$opt" in
@@ -174,8 +174,8 @@ NS__podman_run() {
 				;;
 			esac
 		fi
-		set -- "$@" "$opt" ${opt_arg:+"$opt_arg"} # Add argument(s) to the end of arguments list
-		shift "$shifts"                           # Remove argument(s) from the beginning of arguments list
+		set -- "$@" "$opt" ${opt_arg+"$opt_arg"} # Add argument(s) to the end of arguments list
+		shift "$shifts"                          # Remove argument(s) from the beginning of arguments list
 		i=$((i + shifts))
 	done
 	log_debug "[NS__podman_run] \$*=$(to_string "$@")"
