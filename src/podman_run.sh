@@ -12,6 +12,7 @@ import \
 #}}}
 # podman_run.sh
 NS__initialize_run_variables() {
+	block_network=1
 	NS__workdir=$(pwd)
 	user_home="$HOME"
 	entrypoint_file=
@@ -60,7 +61,7 @@ NS__podman_run() {
 	while :; do
 		log_debug "[NS__podman_run] option '$1'"
 		case "$1" in
-		-n) ;;
+		-n) block_network= ;;
 		--cwd-mode | --cwd-mode=) missing_opt_arg "$1" ;;
 		--cwd-mode=*)
 			set_cwd_mode "${1#'--cwd-mode='}"
@@ -150,6 +151,7 @@ NS__podman_run() {
 		if [ "$i" -lt "$image_arg_pos" ]; then
 			log_debug "${i}: $opt"
 			case "$opt" in
+			--net | --network | --net=* | --network=*) block_network= ;;
 			-p=* | --publish=*)
 				opt=$(make_publish_local_only "$opt")
 				log_debug "${i}: $opt"
