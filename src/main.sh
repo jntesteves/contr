@@ -15,7 +15,7 @@ import \
 	"{ podman_run }" from ./src/podman_run.sh
 #}}}
 # main.sh
-NS__usage() {
+usage() {
 	fd=${1:+2}
 	if [ -n "${2-}" ]; then log_error "$2"; fi
 	NS__usage_podman_options=${3-"  -*                       Any option for the podman-run command. Run 'contr --help-all' for a full list of options"}
@@ -79,8 +79,8 @@ NS__parse_option() {
 		fi
 		OptionsParser_endOptions "$1"
 		;;
-	--help) NS__usage ;;
-	--help-all) NS__usage '' '' "$podman_run_options" ;;
+	--help) usage ;;
+	--help-all) usage '' '' "$podman_run_options" ;;
 	*)
 		if is_podman_option_with_arg "$2"; then
 			OptionsParser_hasOptArg "$1" 1
