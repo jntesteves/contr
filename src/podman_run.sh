@@ -12,35 +12,35 @@ import \
 #}}}
 # podman_run.sh
 NS__initialize_run_variables() {
-	block_network=1
+	NS__block_network=1
 	NS__workdir=$(command pwd)
-	user_home=$HOME
+	NS__user_home=$HOME
 	entrypoint_file=
-	use_entrypoint_file=1
+	NS__use_entrypoint_file=1
 	volume_home=1
 	cwd_mode=rw,exec
 	image_persistence_volumes=
 	cli_persistence_volumes=
 
-	is_tty=
+	NS__is_tty=
 	CONTR_PS1=
 	CONTR_PS1_BUSYBOX=
 	if [ -t 0 ]; then
-		is_tty=1
-		xterm_title=
+		NS__is_tty=1
+		NS__xterm_title=
 		if [ dumb != "${TERM-}" ]; then
 			# shellcheck disable=SC2154
-			xterm_title=$(printf '\001\033]2;\w — contr ⬢ %s\a\002' "$image")
+			NS__xterm_title=$(printf '\001\033]2;\w — contr ⬢ %s\a\002' "$image")
 		fi
-		CONTR_PS1=$(printf '%s\n\001\033[1;36m\002\w\001\033[m\002 — contr \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "$xterm_title" "$image")
+		CONTR_PS1=$(printf '%s\n\001\033[1;36m\002\w\001\033[m\002 — contr \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "$NS__xterm_title" "$image")
 		# Replace all occurrences of control characters 0x01 and 0x02 with textual escapes \[ and \]
 		CONTR_PS1_BUSYBOX=$(substitute_characters "$CONTR_PS1" "$(printf '\001')" '\[')
 		CONTR_PS1_BUSYBOX=$(substitute_characters "$CONTR_PS1_BUSYBOX" "$(printf '\002')" '\]')
 	fi
 
-	user_id=$(command id -u) || log_warn "Failed to get user id. Is the 'id' utility installed?"
+	NS__user_id=$(command id -u) || log_warn "Failed to get user id. Is the 'id' utility installed?"
 	ip_unprivileged_port_start=1024
-	if [ 0 = "$user_id" ]; then
+	if [ 0 = "$NS__user_id" ]; then
 		# if running as root, ignore 'ip_unprivileged_port_start'
 		ip_unprivileged_port_start=
 	elif command -v sysctl >/dev/null; then
@@ -48,6 +48,7 @@ NS__initialize_run_variables() {
 		ip_unprivileged_port_start=${ip_unprivileged_port_start##*[!0-9]}
 	fi
 	log_debug "[NS__initialize_run_variables] ip_unprivileged_port_start=$ip_unprivileged_port_start"
+	unset -v NS__xterm_title NS__user_id
 }
 
 NS__podman_run() {
@@ -61,20 +62,20 @@ NS__podman_run() {
 	while :; do
 		log_debug "[NS__podman_run] option '$1'"
 		case "$1" in
-		-n) block_network= ;;
+		-n) NS__block_network= ;;
 		--cwd-mode | --cwd-mode=) missing_opt_arg "$1" ;;
 		--cwd-mode=*)
-			set_cwd_mode "${1#'--cwd-mode='}"
+			set_cwd_mode "${1#--cwd-mode=}"
 			;;
 		--no-persist) image_persistence_volumes= ;;
 		--persist | --persist=) missing_opt_arg "$1" ;;
 		--persist=*)
-			add_cli_persistence_volume "${1#'--persist='}" "$image_base_name"
+			add_cli_persistence_volume "${1#--persist=}" "$image_base_name"
 			;;
 		-[04567] | -n[04567] | -[04567]n)
-			opt=${1%n}
-			pad=${opt%?}
-			set_cwd_mode "${opt#"$pad"}"
+			NS__opt=${1%n}
+			NS__pad=${NS__opt%?}
+			set_cwd_mode "${NS__opt#"$NS__pad"}"
 			;;
 		--pio)
 			if [ -n "$per_image_environment_file" ]; then environment_file=; fi
@@ -82,14 +83,14 @@ NS__podman_run() {
 			if [ -n "$per_image_profile_file" ]; then profile_file=; fi
 			;;
 		--plain)
-			user_home=
-			use_entrypoint_file=
+			NS__user_home=
+			NS__use_entrypoint_file=
 			profile_file=
 			per_image_profile_file=
 			;;
 		--pure)
-			user_home=
-			use_entrypoint_file=
+			NS__user_home=
+			NS__use_entrypoint_file=
 			environment_file=
 			options_file=
 			profile_file=
@@ -105,7 +106,7 @@ NS__podman_run() {
 	done
 	log_debug "[NS__podman_run] \$*=$(to_string "$@")"
 	log_debug "[NS__podman_run] cli_persistence_volumes=[${cli_persistence_volumes}]"
-	if [ -z "$cwd_mode" ] && [ -z "$user_home" ]; then
+	if [ -z "$cwd_mode" ] && [ -z "$NS__user_home" ]; then
 		volume_home=
 	fi
 	if [ -n "$cwd_mode" ] && [ "$HOME" = "$NS__workdir" ]; then
@@ -151,7 +152,7 @@ NS__podman_run() {
 		if [ "$i" -lt "$image_arg_pos" ]; then
 			log_debug "${i}: $opt"
 			case "$opt" in
-			--net | --network | --net=* | --network=*) block_network= ;;
+			--net | --network | --net=* | --network=*) NS__block_network= ;;
 			-p=* | --publish=*)
 				opt=$(make_publish_local_only "$opt")
 				log_debug "${i}: $opt"
@@ -183,12 +184,12 @@ NS__podman_run() {
 	log_debug "[NS__podman_run] \$*=$(to_string "$@")"
 	[ $# = "$argc" ] || abort "Error processing arguments. We should have $argc arguments but got $# instead"
 
-	if [ -n "$use_entrypoint_file" ]; then
+	if [ -n "$NS__use_entrypoint_file" ]; then
 		write_entrypoint_file
 	fi
 
 	# shellcheck disable=SC2086
-	command podman run -i ${is_tty:+-t} --rm \
+	command podman run -i ${NS__is_tty:+-t} --rm \
 		--tz=local \
 		--security-opt=label=disable \
 		--group-add=keep-groups \
@@ -201,8 +202,8 @@ NS__podman_run() {
 		${CONTR_PS1:+"--env=PS1=$CONTR_PS1"} \
 		${CONTR_PS1:+"--env=CONTR_PS1=$CONTR_PS1"} \
 		${CONTR_PS1_BUSYBOX:+"--env=CONTR_PS1_BUSYBOX=$CONTR_PS1_BUSYBOX"} \
-		${block_network:+"--network=none"} \
-		${user_home:+"--env=HOME=$user_home"} \
+		${NS__block_network:+"--network=none"} \
+		${NS__user_home:+"--env=HOME=$NS__user_home"} \
 		${environment_file:+"--env-file=$environment_file"} \
 		${per_image_environment_file:+"--env-file=$per_image_environment_file"} \
 		${entrypoint_file:+"--volume=${entrypoint_file}:/run/contr/entrypoint:ro,exec"} \
