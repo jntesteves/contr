@@ -65,7 +65,6 @@ EOF
 	exit ${1:+"$1"}
 }
 
-image_arg_pos=
 image=
 image_base_name=
 action=podman-run
@@ -91,16 +90,13 @@ NS__parse_option() {
 
 NS__set_image() {
 	if [ make-config != "$action" ]; then
-		NS__shifts_=$(OptionsParser_optCount contr_main)
-		shift "$NS__shifts_" || exit
+		shift "$(OptionsParser_optCount contr_main)" || exit
 		[ -n "${1-}" ] || abort "An image must be provided. Run contr --help"
-		image_arg_pos=$((NS__shifts_ + 1))
 		image=$1
 	fi
 	image_base_name=$(get_base_name "$image")
 	readonly image image_base_name
-	log_debug "[NS__set_image] image='${image}' image_base_name='${image_base_name}' image_arg_pos='${image_arg_pos}'"
-	unset -v NS__shifts_
+	log_debug "[NS__set_image] image='${image}' image_base_name='${image_base_name}'"
 }
 
 log_debug "[NS__main] length podman_options_with_arg=$(length $podman_options_with_arg)"

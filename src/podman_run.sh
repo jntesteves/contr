@@ -5,6 +5,7 @@ public NS__podman_run
 import \
 	"{ to_string, list, list_from }" from nice_things/collections/native_list.sh \
 	"{ substitute_characters }" from nice_things/text/substitute_characters.sh \
+	"{ OptionsParser, OptionsParser_optCount, OptionsParser_endOptions, OptionsParser_hasOptArg, OptionsParser_destructor }" from nice_things/cli/OptionsParser.sh \
 	"{ write_entrypoint_file }" from ./src/entrypoint.sh \
 	"{ make_publish_local_only, make_volume_noexec, set_cwd_mode }" from ./src/options.sh \
 	"{ add_cli_persistence_volume, create_persistence_volumes }" from ./src/persist.sh \
@@ -12,15 +13,16 @@ import \
 #}}}
 # podman_run.sh
 NS__initialize_run_variables() {
-	NS__block_network=1
-	NS__workdir=$(command pwd)
-	NS__user_home=$HOME
 	entrypoint_file=
-	NS__use_entrypoint_file=1
 	volume_home=1
 	cwd_mode=rw,exec
 	image_persistence_volumes=
 	cli_persistence_volumes=
+	NS__block_network=1
+	NS__workdir=$(command pwd)
+	NS__user_home=$HOME
+	NS__use_entrypoint_file=1
+	NS__podman_arguments=
 
 	NS__is_tty=
 	CONTR_PS1=
@@ -50,76 +52,77 @@ NS__initialize_run_variables() {
 	unset -v NS__xterm_title NS__user_id
 }
 
+NS__parse_option() {
+	case "$2" in
+	-n) NS__block_network= ;;
+	-[04567]) set_cwd_mode "${2#-}" ;;
+	--cwd-mode) { OptionsParser_hasOptArg "$1" 1 && [ -n "${3-}" ] && set_cwd_mode "$3"; } || usage 2 "Invalid option argument ${2} '${3-}'" ;;
+	--no-persist) image_persistence_volumes= ;;
+	--persist) { OptionsParser_hasOptArg "$1" 1 && [ -n "${3-}" ] && add_cli_persistence_volume "$3" "$image_base_name"; } || usage 2 "Invalid option argument ${2} '${3-}'" ;;
+	--pio)
+		if [ -n "$per_image_environment_file" ]; then environment_file=; fi
+		if [ -n "$per_image_options_file" ]; then options_file=; fi
+		if [ -n "$per_image_profile_file" ]; then profile_file=; fi
+		;;
+	--plain)
+		NS__user_home=
+		NS__use_entrypoint_file=
+		profile_file=
+		per_image_profile_file=
+		;;
+	--pure)
+		NS__user_home=
+		NS__use_entrypoint_file=
+		environment_file=
+		options_file=
+		profile_file=
+		per_image_environment_file=
+		per_image_options_file=
+		per_image_profile_file=
+		;;
+	--net | --network)
+		OptionsParser_hasOptArg "$1" 1
+		NS__podman_arguments=$(list $NS__podman_arguments "$2" "$3")
+		NS__block_network=
+		;;
+	-p | --publish)
+		OptionsParser_hasOptArg "$1" 1
+		NS__opt_arg=$(make_publish_local_only "$3")
+		NS__podman_arguments=$(list $NS__podman_arguments "$2" "$NS__opt_arg")
+		log_debug "[NS__parse_option] ${2} '${3}'"
+		log_debug "[NS__parse_option] ${2} '${NS__opt_arg}'"
+		;;
+	-v | --volume)
+		OptionsParser_hasOptArg "$1" 1
+		NS__opt_arg=$(make_volume_noexec "$3")
+		NS__podman_arguments=$(list $NS__podman_arguments "$2" "$NS__opt_arg")
+		log_debug "[NS__parse_option] ${2} '${3}'"
+		log_debug "[NS__parse_option] ${2} '${NS__opt_arg}'"
+		;;
+	*)
+		if is_podman_option_with_arg "$2"; then
+			OptionsParser_hasOptArg "$1" 1
+			NS__podman_arguments=$(list $NS__podman_arguments "$2" "$3")
+		else
+			NS__podman_arguments=$(list $NS__podman_arguments "$2")
+		fi
+		;;
+	esac
+	unset -v NS__opt_arg
+}
+
 NS__podman_run() {
 	check_dependencies chmod grep mkdir podman
 	NS__initialize_run_variables
 	pull_if_missing "$image"
 	create_persistence_volumes "$image" "$image_base_name"
 
-	# Read options from command line
-	while :; do
-		log_debug "[NS__podman_run] option '$1'"
-		case "$1" in
-		-n) NS__block_network= ;;
-		--cwd-mode | --cwd-mode=) missing_opt_arg "$1" ;;
-		--cwd-mode=*)
-			set_cwd_mode "${1#--cwd-mode=}"
-			;;
-		--no-persist) image_persistence_volumes= ;;
-		--persist | --persist=) missing_opt_arg "$1" ;;
-		--persist=*)
-			add_cli_persistence_volume "${1#--persist=}" "$image_base_name"
-			;;
-		-[04567] | -n[04567] | -[04567]n)
-			NS__opt=${1%n}
-			NS__pad=${NS__opt%?}
-			set_cwd_mode "${NS__opt#"$NS__pad"}"
-			;;
-		--pio)
-			if [ -n "$per_image_environment_file" ]; then environment_file=; fi
-			if [ -n "$per_image_options_file" ]; then options_file=; fi
-			if [ -n "$per_image_profile_file" ]; then profile_file=; fi
-			;;
-		--plain)
-			NS__user_home=
-			NS__use_entrypoint_file=
-			profile_file=
-			per_image_profile_file=
-			;;
-		--pure)
-			NS__user_home=
-			NS__use_entrypoint_file=
-			environment_file=
-			options_file=
-			profile_file=
-			per_image_environment_file=
-			per_image_options_file=
-			per_image_profile_file=
-			;;
-		--) shift && break ;;
-		*) break ;;
-		esac
-		shift                                # Remove option from arguments list
-		image_arg_pos=$((image_arg_pos - 1)) # Decrement image position in arguments list
-	done
-	log_debug "[NS__podman_run] \$*=$(to_string "$@")"
-	log_debug "[NS__podman_run] cli_persistence_volumes=[${cli_persistence_volumes}]"
-	if [ -z "$cwd_mode" ] && [ -z "$NS__user_home" ]; then
-		volume_home=
-	fi
-	if [ -n "$cwd_mode" ] && [ "$HOME" = "$NS__workdir" ]; then
-		abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
-	fi
-
 	# Read podman options from file
 	if [ -n "$options_file" ]; then
 		while IFS= read -r line || [ -n "$line" ]; do
 			case "$line" in
-			\#*) ;; # Ignore comments
-			-*)
-				set -- "$line" "$@"                  # Add option to arguments list
-				image_arg_pos=$((image_arg_pos + 1)) # Increment image position in arguments list
-				;;
+			\#*) ;;                    # Ignore comments
+			-*) set -- "$line" "$@" ;; # Add option to arguments list
 			esac
 		done <"$options_file"
 		log_debug "[NS__podman_run] \$*=$(to_string "$@")"
@@ -129,59 +132,26 @@ NS__podman_run() {
 	if [ -n "$per_image_options_file" ]; then
 		while IFS= read -r line || [ -n "$line" ]; do
 			case "$line" in
-			\#*) ;; # Ignore comments
-			-*)
-				set -- "$line" "$@"                  # Add option to arguments list
-				image_arg_pos=$((image_arg_pos + 1)) # Increment image position in arguments list
-				;;
+			\#*) ;;                    # Ignore comments
+			-*) set -- "$line" "$@" ;; # Add option to arguments list
 			esac
 		done <"$per_image_options_file"
 		log_debug "[NS__podman_run] \$*=$(to_string "$@")"
 	fi
 
-	# Change Podman options arguments to override Podman's defaults with ours
-	log_debug "[NS__podman_run] image_arg_pos=$image_arg_pos"
-	argc=$#
-	i=1
-	while [ "$i" -le "$argc" ]; do
-		opt=$1
-		shifts=1
-		unset -v opt_arg
-		if [ "$i" -lt "$image_arg_pos" ]; then
-			log_debug "${i}: $opt"
-			case "$opt" in
-			--net | --network | --net=* | --network=*) NS__block_network= ;;
-			-p=* | --publish=*)
-				opt=$(make_publish_local_only "$opt")
-				log_debug "${i}: $opt"
-				;;
-			-p | --publish)
-				shifts=2
-				opt_arg=$(make_publish_local_only "$2")
-				opt_arg_pos=$((i + 1))
-				log_debug "${opt_arg_pos}: $2"
-				log_debug "${opt_arg_pos}: $opt_arg"
-				;;
-			-v=* | --volume=*)
-				opt=$(make_volume_noexec "$opt")
-				log_debug "${i}: $opt"
-				;;
-			-v | --volume)
-				shifts=2
-				opt_arg=$(make_volume_noexec "$2")
-				opt_arg_pos=$((i + 1))
-				log_debug "${opt_arg_pos}: $2"
-				log_debug "${opt_arg_pos}: $opt_arg"
-				;;
-			esac
-		fi
-		set -- "$@" "$opt" ${opt_arg+"$opt_arg"} # Add argument(s) to the end of arguments list
-		shift "$shifts"                          # Remove argument(s) from the beginning of arguments list
-		i=$((i + shifts))
-	done
+	OptionsParser contr_run NS__parse_option "$@"
+	shift "$(OptionsParser_optCount contr_run)" || exit
+	OptionsParser_destructor contr_run
+	log_debug "[NS__podman_run] cli_persistence_volumes=$(to_string $cli_persistence_volumes)"
+	log_debug "[NS__podman_run] NS__podman_arguments=$(to_string $NS__podman_arguments)"
 	log_debug "[NS__podman_run] \$*=$(to_string "$@")"
-	[ $# = "$argc" ] || abort "Error processing arguments. We should have $argc arguments but got $# instead"
 
+	if [ -z "$cwd_mode" ] && [ -z "$NS__user_home" ]; then
+		volume_home=
+	fi
+	if [ -n "$cwd_mode" ] && [ "$HOME" = "$NS__workdir" ]; then
+		abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
+	fi
 	if [ -n "$NS__use_entrypoint_file" ]; then
 		write_entrypoint_file
 	fi
@@ -212,5 +182,6 @@ NS__podman_run() {
 		${per_image_profile_file:+"--env=CONTR_PROFILE_2=/run/contr/profile2"} \
 		${image_persistence_volumes} \
 		${cli_persistence_volumes} \
+		${NS__podman_arguments} \
 		"$@"
 }
