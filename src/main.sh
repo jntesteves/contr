@@ -9,6 +9,7 @@ import \
 	"{ cat }" from nice_things/io/cat.sh \
 	"{ OptionsParser, OptionsParser_optCount, OptionsParser_endOptions, OptionsParser_hasOptArg, OptionsParser_destructor }" from nice_things/cli/OptionsParser.sh \
 	"{ set_config_files, write_config_files }" from ./src/config_files.sh \
+	"{ get_base_name }" from ./src/image.sh \
 	"{ readonly:podman_run_options, readonly:podman_options_with_arg, is_podman_option_with_arg }" from ./src/podman_options.sh \
 	"{ podman_run }" from ./src/podman_run.sh
 #}}}
@@ -65,7 +66,7 @@ EOF
 
 image_arg_pos=
 image=
-image_short_name=
+image_base_name=
 action=podman-run
 NS__parse_option() {
 	case "$2" in
@@ -95,18 +96,11 @@ NS__set_image() {
 		NS__shifts_=$(OptionsParser_optCount contr_main)
 		shift "$NS__shifts_" || exit
 		[ -n "${1-}" ] || abort "An image must be provided. Run contr --help"
-		# shellcheck disable=SC2034
 		image_arg_pos=$((NS__shifts_ + 1))
 		image=$1
 	fi
-	image_short_name=${image#*://}
-	case "$image_short_name" in
-	localhost/[a-z0-9]*) image_short_name=${image_short_name#localhost/} ;;
-	docker.io/library/[a-z0-9]*) image_short_name=${image_short_name#docker.io/library/} ;;
-	*.*/[a-z0-9]*) image_short_name=${image_short_name#*.*/} ;;
-	esac
-	image_short_name=${image_short_name%%:*}
-	log_debug "[NS__set_image] image='${image}' image_short_name='${image_short_name}' image_arg_pos='${image_arg_pos}'"
+	image_base_name=$(get_base_name "$image")
+	log_debug "[NS__set_image] image='${image}' image_base_name='${image_base_name}' image_arg_pos='${image_arg_pos}'"
 	unset -v NS__shifts_
 }
 
