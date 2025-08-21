@@ -20,7 +20,7 @@ NS__initialize_run_variables() {
 	cli_persistence_volumes=
 	NS__block_network=1
 	NS__workdir=$(command pwd)
-	NS__user_home=$HOME
+	NS__user_home=1
 	NS__use_entrypoint_file=1
 	NS__podman_arguments=
 
@@ -171,7 +171,7 @@ NS__podman_run() {
 		${CONTR_PS1:+"--env=CONTR_PS1=$CONTR_PS1"} \
 		${CONTR_PS1_BUSYBOX:+"--env=CONTR_PS1_BUSYBOX=$CONTR_PS1_BUSYBOX"} \
 		${NS__block_network:+"--network=none"} \
-		${NS__user_home:+"--env=HOME=$NS__user_home"} \
+		${NS__user_home:+"--env=HOME=$HOME"} \
 		${environment_file:+"--env-file=$environment_file"} \
 		${per_image_environment_file:+"--env-file=$per_image_environment_file"} \
 		${entrypoint_file:+"--volume=${entrypoint_file}:/run/contr/entrypoint:ro,exec"} \
