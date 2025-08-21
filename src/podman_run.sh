@@ -117,27 +117,28 @@ NS__podman_run() {
 	pull_if_missing "$image"
 	create_persistence_volumes "$image" "$image_base_name"
 
-	# Read podman options from file
-	if [ -n "$options_file" ]; then
-		while IFS= read -r line || [ -n "$line" ]; do
-			case "$line" in
-			\#*) ;;                    # Ignore comments
-			-*) set -- "$line" "$@" ;; # Add option to arguments list
-			esac
-		done <"$options_file"
-		log_debug "[NS__podman_run] \$*=$(to_string "$@")"
-	fi
-
 	# Read per-image podman options from file
 	if [ -n "$per_image_options_file" ]; then
-		while IFS= read -r line || [ -n "$line" ]; do
-			case "$line" in
-			\#*) ;;                    # Ignore comments
-			-*) set -- "$line" "$@" ;; # Add option to arguments list
+		while IFS= read -r NS__line || [ -n "$NS__line" ]; do
+			case "$NS__line" in
+			"" | \#*) ;;                   # Ignore comments and empty lines
+			-*) set -- "$NS__line" "$@" ;; # Add option to arguments list
 			esac
 		done <"$per_image_options_file"
 		log_debug "[NS__podman_run] \$*=$(to_string "$@")"
 	fi
+
+	# Read podman options from file
+	if [ -n "$options_file" ]; then
+		while IFS= read -r NS__line || [ -n "$NS__line" ]; do
+			case "$NS__line" in
+			"" | \#*) ;;                   # Ignore comments and empty lines
+			-*) set -- "$NS__line" "$@" ;; # Add option to arguments list
+			esac
+		done <"$options_file"
+		log_debug "[NS__podman_run] \$*=$(to_string "$@")"
+	fi
+	unset -v NS__line
 
 	OptionsParser contr_run NS__parse_option "$@"
 	shift "$(OptionsParser_optCount contr_run)" || exit
