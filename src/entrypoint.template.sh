@@ -82,10 +82,10 @@ else
 		log_debug "[entrypoint.sh] SHELL=${SHELL} executable"
 	else
 		log_debug "[entrypoint.sh] SHELL=${SHELL} non-executable"
-		if ! [ -x "$SHELL" ] && [ -x "$bash_cmd" ]; then SHELL="$bash_cmd"; fi
+		if ! [ -x "$SHELL" ] && [ -x "$bash_cmd" ]; then SHELL=$bash_cmd; fi
 		if ! [ -x "$SHELL" ] && [ -x /usr/bin/bash ]; then SHELL=/usr/bin/bash; fi
 		if ! [ -x "$SHELL" ] && [ -x /bin/bash ]; then SHELL=/bin/bash; fi
-		if ! [ -x "$SHELL" ] && [ -x "$sh_cmd" ]; then SHELL="$sh_cmd"; fi
+		if ! [ -x "$SHELL" ] && [ -x "$sh_cmd" ]; then SHELL=$sh_cmd; fi
 		if ! [ -x "$SHELL" ] && [ -x /usr/bin/sh ]; then SHELL=/usr/bin/sh; fi
 		if ! [ -x "$SHELL" ] && [ -x /bin/sh ]; then SHELL=/bin/sh; fi
 		[ -x "$SHELL" ] || abort "SHELL=${SHELL} not executable. Could not find an executable shell"

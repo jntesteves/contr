@@ -14,11 +14,11 @@ import \
 NS__initialize_run_variables() {
 	block_network=1
 	NS__workdir=$(pwd)
-	user_home="$HOME"
+	user_home=$HOME
 	entrypoint_file=
 	use_entrypoint_file=1
 	volume_home=1
-	cwd_mode='rw,exec'
+	cwd_mode=rw,exec
 	image_persistence_volumes=
 	cli_persistence_volumes=
 
@@ -32,7 +32,7 @@ NS__initialize_run_variables() {
 			# shellcheck disable=SC2154
 			xterm_title=$(printf '\001\033]2;\w — contr ⬢ %s\a\002' "$image")
 		fi
-		CONTR_PS1="$(printf '%s\n\001\033[1;36m\002\w\001\033[m\002 — contr \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "$xterm_title" "$image")"
+		CONTR_PS1=$(printf '%s\n\001\033[1;36m\002\w\001\033[m\002 — contr \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "$xterm_title" "$image")
 		# Replace all occurrences of control characters 0x01 and 0x02 with textual escapes \[ and \]
 		CONTR_PS1_BUSYBOX=$(substitute_characters "$CONTR_PS1" "$(printf '\001')" '\[')
 		CONTR_PS1_BUSYBOX=$(substitute_characters "$CONTR_PS1_BUSYBOX" "$(printf '\002')" '\]')
@@ -44,8 +44,8 @@ NS__initialize_run_variables() {
 		# if running as root, ignore 'ip_unprivileged_port_start'
 		ip_unprivileged_port_start=
 	elif command -v sysctl >/dev/null; then
-		ip_unprivileged_port_start="$(sysctl net.ipv4.ip_unprivileged_port_start)" # net.ipv4.ip_unprivileged_port_start = 1024
-		ip_unprivileged_port_start="${ip_unprivileged_port_start##*[!0-9]}"
+		ip_unprivileged_port_start=$(sysctl net.ipv4.ip_unprivileged_port_start) # net.ipv4.ip_unprivileged_port_start = 1024
+		ip_unprivileged_port_start=${ip_unprivileged_port_start##*[!0-9]}
 	fi
 	log_debug "[NS__initialize_run_variables] ip_unprivileged_port_start=$ip_unprivileged_port_start"
 }
@@ -72,8 +72,8 @@ NS__podman_run() {
 			add_cli_persistence_volume "${1#'--persist='}" "$image_base_name"
 			;;
 		-[04567] | -n[04567] | -[04567]n)
-			opt="${1%n}"
-			pad="${opt%?}"
+			opt=${1%n}
+			pad=${opt%?}
 			set_cwd_mode "${opt#"$pad"}"
 			;;
 		--pio)
