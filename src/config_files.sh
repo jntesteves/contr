@@ -64,33 +64,34 @@ NS__set_config_files() {
 }
 NS__write_config_files() {
 	if [ "${1-}" ]; then
-		set -- "$NS__per_image_config_dir"
+		NS__config_dir_=$NS__per_image_config_dir
 	else
-		set -- "$NS__config_dir"
+		NS__config_dir_=$NS__config_dir
 	fi
-	log_debug "[NS__write_config_files] mkdir -p \"$1\""
-	command mkdir -p "$1"
+	log_debug "[NS__write_config_files] mkdir -p '${NS__config_dir_}'"
+	command mkdir -p "$NS__config_dir_"
 
-	if ! [ -f "${1}/environment" ]; then
-		log_info "Writing config file at '${1}/environment'"
-		NS__print_environment_file_ >"${1}/environment"
+	if ! [ -f "${NS__config_dir_}/environment" ]; then
+		log_info "Writing config file at '${NS__config_dir_}/environment'"
+		NS__print_environment_file_ >"${NS__config_dir_}/environment"
 	else
-		log_info "Config file already exists at '${1}/environment'"
-	fi
-
-	if ! [ -f "${1}/options" ]; then
-		log_info "Writing config file at '${1}/options'"
-		NS__print_options_file_ >"${1}/options"
-	else
-		log_info "Config file already exists at '${1}/options'"
+		log_info "Config file already exists at '${NS__config_dir_}/environment'"
 	fi
 
-	if ! [ -f "${1}/profile" ]; then
-		log_info "Writing config file at '${1}/profile'"
-		NS__print_profile_file_ >"${1}/profile"
+	if ! [ -f "${NS__config_dir_}/options" ]; then
+		log_info "Writing config file at '${NS__config_dir_}/options'"
+		NS__print_options_file_ >"${NS__config_dir_}/options"
 	else
-		log_info "Config file already exists at '${1}/profile'"
+		log_info "Config file already exists at '${NS__config_dir_}/options'"
 	fi
+
+	if ! [ -f "${NS__config_dir_}/profile" ]; then
+		log_info "Writing config file at '${NS__config_dir_}/profile'"
+		NS__print_profile_file_ >"${NS__config_dir_}/profile"
+	else
+		log_info "Config file already exists at '${NS__config_dir_}/profile'"
+	fi
+	unset -v NS__config_dir_
 }
 NS__print_environment_file_() {
 	cat <<'EOF_ENVIRONMENT_FILE'
