@@ -1,6 +1,6 @@
 #{{{
 # SPDX-License-Identifier: Unlicense
-# shellcheck shell=sh disable=SC2086
+# shellcheck shell=sh disable=SC2034,SC2086
 public \
 	NS__add_cli_persistence_volume \
 	NS__create_persistence_volumes
@@ -19,7 +19,6 @@ NS__get_persistence_volume_specifier_() {
 	*:rw) NS__mount_specifier_="${NS__mount_specifier_},noexec" ;;
 	*) NS__mount_specifier_="${NS__mount_specifier_}:noexec" ;;
 	esac
-	# shellcheck disable=SC2034
 	case "$NS__mount_specifier_" in home | home[/:]*) volume_home= ;; esac
 	NS__mount_point_=$NS__mount_specifier_
 	case "$NS__mount_point_" in

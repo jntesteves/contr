@@ -3,6 +3,7 @@
 # shellcheck disable=SC2046,SC2086,SC2120
 #{{{ strict_mode }}}
 #{{{
+# shellcheck disable=SC2154
 import \
 	./src/util.sh \
 	"{ length, to_string, list, list_from }" from nice_things/collections/native_list.sh \
@@ -79,10 +80,7 @@ NS__parse_option() {
 		OptionsParser_endOptions "$1"
 		;;
 	--help) NS__usage ;;
-	--help-all)
-		# shellcheck disable=SC2154
-		NS__usage '' '' "$podman_run_options"
-		;;
+	--help-all) NS__usage '' '' "$podman_run_options" ;;
 	*)
 		if is_podman_option_with_arg "$2"; then
 			OptionsParser_hasOptArg "$1" 1
@@ -105,7 +103,6 @@ NS__set_image() {
 	unset -v NS__shifts_
 }
 
-# shellcheck disable=SC2154
 log_debug "[NS__main] length podman_options_with_arg=$(length $podman_options_with_arg)"
 if log_is_level trace; then
 	log_trace "[NS__main] podman_options_with_arg=$(to_string $podman_options_with_arg)"

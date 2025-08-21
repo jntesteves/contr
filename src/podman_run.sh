@@ -1,6 +1,6 @@
 #{{{
 # SPDX-License-Identifier: Unlicense
-# shellcheck shell=sh
+# shellcheck shell=sh disable=SC2086,SC2154
 public NS__podman_run
 import \
 	"{ to_string, list, list_from }" from nice_things/collections/native_list.sh \
@@ -29,7 +29,6 @@ NS__initialize_run_variables() {
 		NS__is_tty=1
 		NS__xterm_title=
 		if [ dumb != "${TERM-}" ]; then
-			# shellcheck disable=SC2154
 			NS__xterm_title=$(printf '\001\033]2;\w — contr ⬢ %s\a\002' "$image")
 		fi
 		CONTR_PS1=$(printf '%s\n\001\033[1;36m\002\w\001\033[m\002 — contr \001\033[1;35m\002⬢ %s\001\033[m\002\n\001\033[1;90m\002❯\001\033[m\002 ' "$NS__xterm_title" "$image")
@@ -55,7 +54,6 @@ NS__podman_run() {
 	check_dependencies chmod grep mkdir podman
 	NS__initialize_run_variables
 	pull_if_missing "$image"
-	# shellcheck disable=SC2154
 	create_persistence_volumes "$image" "$image_base_name"
 
 	# Read options from command line
@@ -188,7 +186,6 @@ NS__podman_run() {
 		write_entrypoint_file
 	fi
 
-	# shellcheck disable=SC2086
 	command podman run -i ${NS__is_tty:+-t} --rm \
 		--tz=local \
 		--security-opt=label=disable \
