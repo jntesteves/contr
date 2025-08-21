@@ -100,6 +100,7 @@ NS__set_image() {
 		image=$1
 	fi
 	image_base_name=$(get_base_name "$image")
+	readonly image image_base_name
 	log_debug "[NS__set_image] image='${image}' image_base_name='${image_base_name}' image_arg_pos='${image_arg_pos}'"
 	unset -v NS__shifts_
 }
