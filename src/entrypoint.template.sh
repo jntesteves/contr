@@ -50,8 +50,8 @@ fi
 
 # If HOME is in /var/home or similar, add a link to it in /home
 case "$HOME" in /*/home/*)
-	mkdir -p /home
-	ln -s "$HOME" "/home/${HOME##*/}" && :
+	command mkdir -p /home
+	command ln -s "$HOME" "/home/${HOME##*/}" && :
 	;;
 esac
 

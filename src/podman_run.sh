@@ -13,7 +13,7 @@ import \
 # podman_run.sh
 NS__initialize_run_variables() {
 	block_network=1
-	NS__workdir=$(pwd)
+	NS__workdir=$(command pwd)
 	user_home=$HOME
 	entrypoint_file=
 	use_entrypoint_file=1
@@ -38,13 +38,13 @@ NS__initialize_run_variables() {
 		CONTR_PS1_BUSYBOX=$(substitute_characters "$CONTR_PS1_BUSYBOX" "$(printf '\002')" '\]')
 	fi
 
-	user_id=$(id -u) || log_warn "Failed to get user id. Is the 'id' utility installed?"
+	user_id=$(command id -u) || log_warn "Failed to get user id. Is the 'id' utility installed?"
 	ip_unprivileged_port_start=1024
 	if [ 0 = "$user_id" ]; then
 		# if running as root, ignore 'ip_unprivileged_port_start'
 		ip_unprivileged_port_start=
 	elif command -v sysctl >/dev/null; then
-		ip_unprivileged_port_start=$(sysctl net.ipv4.ip_unprivileged_port_start) # net.ipv4.ip_unprivileged_port_start = 1024
+		ip_unprivileged_port_start=$(command sysctl net.ipv4.ip_unprivileged_port_start) # net.ipv4.ip_unprivileged_port_start = 1024
 		ip_unprivileged_port_start=${ip_unprivileged_port_start##*[!0-9]}
 	fi
 	log_debug "[NS__initialize_run_variables] ip_unprivileged_port_start=$ip_unprivileged_port_start"

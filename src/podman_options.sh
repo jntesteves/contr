@@ -10,14 +10,14 @@ public \
 import "{ to_string, list, list_from }" from nice_things/collections/native_list.sh
 #}}}
 # podman_options.sh
-NS__podman_options=$(podman --help 2>/dev/null | grep -E '^\s+--|^\s+-\w, --' -) && :
-NS__podman_run_options=$(podman run --help 2>/dev/null | grep -E '^\s+--|^\s+-\w, --' -) && :
+NS__podman_options=$(command podman --help 2>/dev/null | command grep -E '^\s+--|^\s+-\w, --' -) && :
+NS__podman_run_options=$(command podman run --help 2>/dev/null | command grep -E '^\s+--|^\s+-\w, --' -) && :
 readonly NS__podman_options NS__podman_run_options
 
 # From the podman option flags, filter only those that take arguments
 NS__print_podman_options_with_arg() {
 	printf '%s\n%s' "$NS__podman_options" "$NS__podman_run_options" |
-		grep -Ei '^\s+-\w, --\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while IFS= read -r NS__line || [ -n "$NS__line" ]; do
+		command grep -Ei '^\s+-\w, --\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while IFS= read -r NS__line || [ -n "$NS__line" ]; do
 		NS__line=${NS__line#"${NS__line%%[![:space:]]*}"} # Trim leading spaces
 		printf '%s\n' "${NS__line%%,*}"
 		NS__long_opt=${NS__line#*,[[:space:]]}
@@ -25,7 +25,7 @@ NS__print_podman_options_with_arg() {
 		printf '%s\n' "$NS__long_opt"
 	done
 	printf '%s\n%s' "$NS__podman_options" "$NS__podman_run_options" |
-		grep -Ei '^\s+--\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while IFS= read -r NS__line || [ -n "$NS__line" ]; do
+		command grep -Ei '^\s+--\w[-a-z0-9]+ [-a-z0-9<:>[]+' - | while IFS= read -r NS__line || [ -n "$NS__line" ]; do
 		NS__line=${NS__line#"${NS__line%%[![:space:]]*}"} # Trim leading spaces
 		printf '%s\n' "${NS__line%%[[:space:]]*}"
 	done

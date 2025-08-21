@@ -68,7 +68,7 @@ NS__write_config_files() {
 		set -- "$config_dir"
 	fi
 	log_debug "[NS__write_config_files] mkdir -p \"$1\""
-	mkdir -p "$1"
+	command mkdir -p "$1"
 
 	if ! [ -f "${1}/environment" ]; then
 		log_info "Writing config file at '${1}/environment'"

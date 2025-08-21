@@ -14,7 +14,7 @@ NS__write_entrypoint_file() {
 	entrypoint_file=$(create_runtime_file entrypoint/entrypoint) || abort "Failed to write entrypoint file"
 	log_debug "[NS__write_entrypoint_file] writing to file at '${entrypoint_file}'"
 	NS__print_entrypoint_file_ >|"$entrypoint_file" || abort "Failed to write entrypoint file"
-	chmod +x "$entrypoint_file" || abort "Failed to set execute bit on entrypoint file"
+	command chmod +x "$entrypoint_file" || abort "Failed to set execute bit on entrypoint file"
 }
 NS__print_entrypoint_file_() {
 	cat <<"EOF_ENTRYPOINT_FILE"
