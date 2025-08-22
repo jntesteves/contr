@@ -19,7 +19,6 @@ NS__get_persistence_volume_specifier_() {
 	*:rw) NS__mount_specifier_="${NS__mount_specifier_},noexec" ;;
 	*) NS__mount_specifier_="${NS__mount_specifier_}:noexec" ;;
 	esac
-	case "$NS__mount_specifier_" in home | home[/:]*) volume_home= ;; esac
 	NS__mount_point_=$NS__mount_specifier_
 	case "$NS__mount_point_" in
 	home | home[/:]*) NS__mount_point_="${HOME}${NS__mount_point_#home}" ;;

@@ -35,6 +35,8 @@ if [ -w /etc/bash.bashrc ]; then
 	sed -Ei '/^\s*PS1=/s/PS1=/__&/' /etc/bash.bashrc /etc/profile /root/.bashrc /root/.profile 2>/dev/null && :
 fi
 
+command mkdir -p "$HOME"
+
 # Link to files in /root from HOME
 if [ /root != "$HOME" ]; then
 	for file in /root/.* /root/*; do
@@ -49,7 +51,7 @@ if [ /root != "$HOME" ]; then
 fi
 
 # If HOME is in /var/home or similar, add a link to it in /home
-case "$HOME" in /*/home/*)
+case "$HOME" in /home/*) ;; *)
 	command mkdir -p /home
 	command ln -s "$HOME" "/home/${HOME##*/}" && :
 	;;

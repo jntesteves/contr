@@ -15,7 +15,6 @@ import \
 # podman_run.sh
 NS__initialize_run_variables() {
 	entrypoint_file=
-	volume_home=1
 	cwd_mode=rw,exec
 	image_persistence_volumes=
 	cli_persistence_volumes=
@@ -152,9 +151,6 @@ NS__podman_run() {
 	log_debug "[NS__podman_run] NS__podman_arguments=$(to_string $NS__podman_arguments)"
 	log_debug "[NS__podman_run] \$*=$(to_string "$@")"
 
-	if [ -z "$cwd_mode" ] && [ -z "$NS__user_home" ]; then
-		volume_home=
-	fi
 	if [ -n "$cwd_mode" ] && [ "$HOME" = "$NS__workdir" ]; then
 		abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
 	fi
@@ -169,7 +165,6 @@ NS__podman_run() {
 		--user="0:0" \
 		--pull=never \
 		--env=CONTR_LOG_LEVEL \
-		${volume_home:+"--volume=$HOME"} \
 		${cwd_mode:+"--volume=${NS__workdir}:${NS__workdir}:$cwd_mode"} \
 		${cwd_mode:+"--workdir=$NS__workdir"} \
 		${CONTR_PS1:+"--env=PS1=$CONTR_PS1"} \
