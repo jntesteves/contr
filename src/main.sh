@@ -80,6 +80,7 @@ NS__parse_option() {
 		;;
 	--help) usage ;;
 	--help-all) usage '' '' "$podman_run_options" ;;
+	--cwd-mode | --persist) OptionsParser_hasOptArg "$1" 1 ;;
 	*)
 		if is_podman_option_with_arg "$2"; then
 			OptionsParser_hasOptArg "$1" 1
