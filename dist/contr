@@ -49,6 +49,52 @@ nice__log__abort__abort() {
 
 abort() { nice__log__abort__abort "$@"; }
 
+nice__fs__realpath__log_error() { nice__log__log__log_error "$@"; }
+
+# nice_things/fs/realpath.sh 0.2.0
+# realpath FILE...
+nice__fs__realpath__realpath() {
+	nice__fs__realpath__inexistent_path=
+	while [ $# -gt 0 ]; do
+		nice__fs__realpath__file=${1%"${1##*[!/]}"} # Remove trailing slashes
+		nice__fs__realpath__filename=${nice__fs__realpath__file##*/}
+		case "$nice__fs__realpath__file" in
+		/* | ./* | ../* | "") ;;
+		. | ..) nice__fs__realpath__filename= ;;
+		*) nice__fs__realpath__file="./${nice__fs__realpath__file}" ;;
+		esac
+		nice__fs__realpath__dir=${nice__fs__realpath__file%/*}
+		case "$1" in "" | *[!/]*) nice__fs__realpath__dir=${nice__fs__realpath__dir:-.} ;; *) nice__fs__realpath__dir=/ ;; esac
+		if nice__fs__realpath__real_dir=$(cd "$nice__fs__realpath__dir" 2>/dev/null && pwd -P); then
+			nice__fs__realpath__real_path="${nice__fs__realpath__real_dir}${nice__fs__realpath__filename:+"/${nice__fs__realpath__filename}"}"
+			if [ -h "$nice__fs__realpath__real_path" ]; then
+				(
+					cd "${nice__fs__realpath__real_dir}" &&
+						nice__fs__realpath__link_target=$(command ls -l "$nice__fs__realpath__real_path") &&
+						nice__fs__realpath__link_target=${nice__fs__realpath__link_target#*"${nice__fs__realpath__real_path} -> "} &&
+						nice__fs__realpath__realpath "$nice__fs__realpath__link_target"
+				) || nice__fs__realpath__inexistent_path=1
+			elif [ -e "$nice__fs__realpath__real_path" ]; then
+				printf '%s\n' "$nice__fs__realpath__real_path"
+			else
+				nice__fs__realpath__inexistent_path=1
+				nice__fs__realpath__log_error "[realpath] ${1}: No such file or directory"
+			fi
+		else
+			nice__fs__realpath__inexistent_path=1
+			nice__fs__realpath__log_error "[realpath] ${1}: No such file or directory"
+		fi
+		shift
+	done
+	if [ -n "$nice__fs__realpath__inexistent_path" ]; then
+		unset -v nice__fs__realpath__inexistent_path nice__fs__realpath__file nice__fs__realpath__filename nice__fs__realpath__dir nice__fs__realpath__real_dir nice__fs__realpath__real_path
+		return 1
+	fi
+	unset -v nice__fs__realpath__inexistent_path nice__fs__realpath__file nice__fs__realpath__filename nice__fs__realpath__dir nice__fs__realpath__real_dir nice__fs__realpath__real_path
+}
+
+realpath() { nice__fs__realpath__realpath "$@"; }
+
 # nice_things/text/substitute_characters.sh 0.2.0
 # substitute_characters text pattern [replacement]
 # Substitute every instance of the pattern characters in text with replacement string
@@ -74,9 +120,7 @@ substitute_characters() { nice__text__substitute_characters__substitute_characte
 
 # util.sh
 # Sanitize string for use in filename. Replaces / and : with _
-sanitize_for_fs() {
-	substitute_characters "$1" '/:' '_'
-}
+sanitize_for_fs() { substitute_characters "$1" '/:' '_'; }
 check_dependencies() {
 	contr__util__missing=
 	for contr__util__dep in "$@"; do
@@ -89,6 +133,10 @@ check_dependencies() {
 		abort "Aborted due to missing dependencies. Make sure all dependencies are available in the PATH"
 	fi
 	unset -v contr__util__missing contr__util__dep
+}
+is_home_dir() {
+	case "${HOME%"${HOME##*[!/]}"}" in "${1%"${1##*[!/]}"}" | "$(realpath "$1" 2>/dev/null || :)") return 0 ;; esac
+	return 1
 }
 
 nice__collections__native_list__log_error() { nice__log__log__log_error "$@"; }
@@ -845,6 +893,8 @@ if [ -w /etc/bash.bashrc ]; then
 	sed -Ei '/^\s*PS1=/s/PS1=/__&/' /etc/bash.bashrc /etc/profile /root/.bashrc /root/.profile 2>/dev/null && :
 fi
 
+command mkdir -p "$HOME"
+
 # Link to files in /root from HOME
 if [ /root != "$HOME" ]; then
 	for file in /root/.* /root/*; do
@@ -852,30 +902,36 @@ if [ /root != "$HOME" ]; then
 		"/root/." | "/root/.." | "/root/.*" | "/root/*") ;;
 		*)
 			log_debug "[entrypoint.sh] ln -s ${file} ${HOME}"
-			ln -s "$file" "$HOME" && :
+			if ! _error=$(ln -s "$file" "$HOME" 2>&1); then
+				log_debug "[entrypoint.sh] error: ${_error}"
+			fi
 			;;
 		esac
 	done
+	unset -v _error
 fi
 
 # If HOME is in /var/home or similar, add a link to it in /home
-case "$HOME" in /*/home/*)
+case "$HOME" in /home/*) ;; *)
 	command mkdir -p /home
 	command ln -s "$HOME" "/home/${HOME##*/}" && :
 	;;
 esac
 
-if log_is_level debug; then
-	_dbg=
-else
-	_dbg='#'
-fi
 export ENV="${HOME}/.profile"
 
 write_profile_files() {
+	if log_is_level debug; then
+		_dbg=
+	else
+		_dbg='#'
+	fi
 	for p in .bashrc .cshrc .kshrc .profile .zshrc; do
-		printf "\\n%s printf '~/%s sourcing %s=%s\\\\n'\\n. '%s'\\n" "$_dbg" "$p" "$1" "$2" "$2" >>"${HOME}/$p"
+		if ! _error=$( (printf "\\n%s printf '~/%s sourcing %s=%s\\\\n'\\n. '%s'\\n" "$_dbg" "$p" "$1" "$2" "$2" >>"${HOME}/$p") 2>&1); then
+			log_debug "[entrypoint.sh] error: ${_error}"
+		fi
 	done
+	unset -v _dbg _error
 }
 if [ -f "$CONTR_PROFILE_1" ]; then write_profile_files CONTR_PROFILE_1 "$CONTR_PROFILE_1"; fi
 if [ -f "$CONTR_PROFILE_2" ]; then write_profile_files CONTR_PROFILE_2 "$CONTR_PROFILE_2"; fi
@@ -909,71 +965,39 @@ EOF_ENTRYPOINT_FILE
 
 write_entrypoint_file() { contr__entrypoint__write_entrypoint_file "$@"; }
 
-# options.sh
+# network.sh
 # Add 127.0.0.1 as bind address to published ports unless an address is explicitly set
 # For ports 1024 and above, bind container ports to the same port number on the host if not specified
-contr__options__make_publish_local_only() {
-	contr__options__opt_arg=${1#--publish=}
-	contr__options__opt_arg=${contr__options__opt_arg#-p=}
-	contr__options__opt_flag= && [ "$contr__options__opt_arg" != "$1" ] && contr__options__opt_flag='--publish='
+contr__network__make_publish_local_only() {
+	contr__network__opt_arg=${1#--publish=}
+	contr__network__opt_arg=${contr__network__opt_arg#-p=}
+	contr__network__opt_flag= && [ "$contr__network__opt_arg" != "$1" ] && contr__network__opt_flag='--publish='
 
 	print_arg() {
 		if [ "${ip_unprivileged_port_start:-0}" -le "$2" ]; then
-			printf '%s%s:%s:%s' "$contr__options__opt_flag" "$1" "${3:-"$2"}" "$2"
+			printf '%s%s:%s:%s' "$contr__network__opt_flag" "$1" "${3:-"$2"}" "$2"
 		else
-			printf '%s%s:%s:%s' "$contr__options__opt_flag" "$1" "${3:-}" "$2"
+			printf '%s%s:%s:%s' "$contr__network__opt_flag" "$1" "${3:-}" "$2"
 		fi
 	}
 	case "$1" in
 	*.*.*.*::*) # arg is an IP address and a container port
-		contr__options__container_port=${contr__options__opt_arg##*:}
-		contr__options__ip_address=${contr__options__opt_arg%%::*}
-		print_arg "$contr__options__ip_address" "$contr__options__container_port"
+		contr__network__container_port=${contr__network__opt_arg##*:}
+		contr__network__ip_address=${contr__network__opt_arg%%::*}
+		print_arg "$contr__network__ip_address" "$contr__network__container_port"
 		;;
 	*.*.*.*:*:*) printf '%s' "$1" ;; # arg is an IP address and a pair of host:container ports, ignore
 	*:*)                             # arg is a pair of host:container ports
-		contr__options__container_port=${contr__options__opt_arg##*:}
-		contr__options__host_port=${contr__options__opt_arg%%:*}
-		print_arg '127.0.0.1' "$contr__options__container_port" "$contr__options__host_port"
+		contr__network__container_port=${contr__network__opt_arg##*:}
+		contr__network__host_port=${contr__network__opt_arg%%:*}
+		print_arg '127.0.0.1' "$contr__network__container_port" "$contr__network__host_port"
 		;;
-	*) print_arg '127.0.0.1' "$contr__options__opt_arg" ;; # If there are no colons, arg is only a container port number
+	*) print_arg '127.0.0.1' "$contr__network__opt_arg" ;; # If there are no colons, arg is only a container port number
 	esac
-	unset -v contr__options__opt_arg contr__options__opt_flag contr__options__container_port contr__options__ip_address contr__options__host_port
-}
-# Add noexec option to a volume definition unless an exec mode is explicitly set
-contr__options__make_volume_noexec() {
-	case "$1" in
-	*:*)
-		contr__options__volume_opts=${1##*:}
-		case "$contr__options__volume_opts" in
-		*/*) printf '%s' "${1}:noexec" ;; # Slashes mean the last component is a path, there are no options
-		*exec*) printf '%s' "$1" ;;       # exec/noexec already present, don't change anything
-		*) printf '%s' "${1},noexec" ;;   # Add noexec to options list
-		esac
-		;;
-	*)
-		# If there are no colons we do nothing as this is an anonymous volume, which
-		# does not accept options, and in our case (podman-run --rm) is transient anyway
-		printf '%s' "$1"
-		;;
-	esac
-	unset -v contr__options__volume_opts
-}
-contr__options__set_cwd_mode() {
-	case "$1" in
-	0) cwd_mode= ;;
-	4) cwd_mode=ro ;;
-	5) cwd_mode=ro,exec ;;
-	6) cwd_mode=rw ;;
-	7) cwd_mode=rw,exec ;;
-	*) cwd_mode=$1 ;;
-	esac
-	log_debug "[contr__options__set_cwd_mode] cwd_mode=$cwd_mode"
+	unset -v contr__network__opt_arg contr__network__opt_flag contr__network__container_port contr__network__ip_address contr__network__host_port
 }
 
-make_publish_local_only() { contr__options__make_publish_local_only "$@"; }
-make_volume_noexec() { contr__options__make_volume_noexec "$@"; }
-set_cwd_mode() { contr__options__set_cwd_mode "$@"; }
+make_publish_local_only() { contr__network__make_publish_local_only "$@"; }
 
 get_label() { contr__image__get_label "$@"; }
 
@@ -987,7 +1011,6 @@ contr__persist__get_persistence_volume_specifier_() {
 	*:rw) contr__persist__mount_specifier_="${contr__persist__mount_specifier_},noexec" ;;
 	*) contr__persist__mount_specifier_="${contr__persist__mount_specifier_}:noexec" ;;
 	esac
-	case "$contr__persist__mount_specifier_" in home | home[/:]*) volume_home= ;; esac
 	contr__persist__mount_point_=$contr__persist__mount_specifier_
 	case "$contr__persist__mount_point_" in
 	home | home[/:]*) contr__persist__mount_point_="${HOME}${contr__persist__mount_point_#home}" ;;
@@ -1037,15 +1060,64 @@ contr__persist__create_persistence_volumes() {
 add_cli_persistence_volume() { contr__persist__add_cli_persistence_volume "$@"; }
 create_persistence_volumes() { contr__persist__create_persistence_volumes "$@"; }
 
+# volume.sh
+# Add noexec option to a volume definition unless an exec mode is explicitly set
+contr__volume__make_volume_noexec() {
+	case "$1" in
+	*:*)
+		contr__volume__volume_opts=${1##*:}
+		case "$contr__volume__volume_opts" in
+		*/*) printf '%s' "${1}:noexec" ;; # Slashes mean the last component is a path, there are no options
+		*exec*) printf '%s' "$1" ;;       # exec/noexec already present, don't change anything
+		*) printf '%s' "${1},noexec" ;;   # Add noexec to options list
+		esac
+		;;
+	*)
+		# If there are no colons we do nothing as this is an anonymous volume, which
+		# does not accept options, and in our case (podman-run --rm) is transient anyway
+		printf '%s' "$1"
+		;;
+	esac
+	unset -v contr__volume__volume_opts
+}
+contr__volume__set_cwd_mode() {
+	case "$1" in
+	0) cwd_mode= ;;
+	4) cwd_mode=ro ;;
+	5) cwd_mode=ro,exec ;;
+	6) cwd_mode=rw ;;
+	7) cwd_mode=rw,exec ;;
+	*) cwd_mode=$1 ;;
+	esac
+	log_debug "[contr__volume__set_cwd_mode] cwd_mode=$cwd_mode"
+}
+contr__volume__add_cli_filesystem() {
+	contr__volume__path=$1
+	case "$contr__volume__path" in
+	"~" | "~"[/:]*) contr__volume__path="${HOME}${contr__volume__path#"~"}" ;;
+	home | home[/:]*) contr__volume__path="${HOME}${contr__volume__path#home}" ;;
+	esac
+	if is_home_dir "${contr__volume__path%%:*}"; then
+		abort "Mounting the home directory with the --filesystem option is not allowed. That would expose your entire home directory inside the container, defeating the security purpose of this program."
+	fi
+	contr__volume__volume_option=$(contr__volume__make_volume_noexec "${contr__volume__path%%:*}:${contr__volume__path}")
+	cli_filesystem_volumes=$(list $cli_filesystem_volumes "--volume=${contr__volume__volume_option}")
+	unset -v contr__volume__path contr__volume__volume_option
+}
+
+make_volume_noexec() { contr__volume__make_volume_noexec "$@"; }
+set_cwd_mode() { contr__volume__set_cwd_mode "$@"; }
+add_cli_filesystem() { contr__volume__add_cli_filesystem "$@"; }
+
 pull_if_missing() { contr__image__pull_if_missing "$@"; }
 
 # podman_run.sh
 contr__podman_run__initialize_run_variables() {
 	entrypoint_file=
-	volume_home=1
 	cwd_mode=rw,exec
 	image_persistence_volumes=
 	cli_persistence_volumes=
+	cli_filesystem_volumes=
 	contr__podman_run__block_network=1
 	contr__podman_run__workdir=$(command pwd)
 	contr__podman_run__user_home=1
@@ -1085,6 +1157,7 @@ contr__podman_run__parse_option() {
 	-n) contr__podman_run__block_network= ;;
 	-[04567]) set_cwd_mode "${2#-}" ;;
 	--cwd-mode) { OptionsParser_hasOptArg "$1" 1 && [ -n "${3-}" ] && set_cwd_mode "$3"; } || usage 2 "Invalid option argument ${2} '${3-}'" ;;
+	--filesystem) { OptionsParser_hasOptArg "$1" 1 && [ -n "${3-}" ] && add_cli_filesystem "$3"; } || usage 2 "Invalid option argument ${2} '${3-}'" ;;
 	--no-persist) image_persistence_volumes= ;;
 	--persist) { OptionsParser_hasOptArg "$1" 1 && [ -n "${3-}" ] && add_cli_persistence_volume "$3" "$image_base_name"; } || usage 2 "Invalid option argument ${2} '${3-}'" ;;
 	--pio)
@@ -1171,13 +1244,12 @@ contr__podman_run__podman_run() {
 	OptionsParser contr_run contr__podman_run__parse_option "$@"
 	shift "$(OptionsParser_optCount contr_run)" || exit
 	OptionsParser_destructor contr_run
+	log_debug "[contr__podman_run__podman_run] image_persistence_volumes=$(to_string $image_persistence_volumes)"
 	log_debug "[contr__podman_run__podman_run] cli_persistence_volumes=$(to_string $cli_persistence_volumes)"
+	log_debug "[contr__podman_run__podman_run] cli_filesystem_volumes=$(to_string $cli_filesystem_volumes)"
 	log_debug "[contr__podman_run__podman_run] contr__podman_run__podman_arguments=$(to_string $contr__podman_run__podman_arguments)"
 	log_debug "[contr__podman_run__podman_run] \$*=$(to_string "$@")"
 
-	if [ -z "$cwd_mode" ] && [ -z "$contr__podman_run__user_home" ]; then
-		volume_home=
-	fi
 	if [ -n "$cwd_mode" ] && [ "$HOME" = "$contr__podman_run__workdir" ]; then
 		abort "Do not use contr in the home directory. This is not supported, and would expose your entire home directory inside the container, defeating the security purpose of this program."
 	fi
@@ -1192,7 +1264,6 @@ contr__podman_run__podman_run() {
 		--user="0:0" \
 		--pull=never \
 		--env=CONTR_LOG_LEVEL \
-		${volume_home:+"--volume=$HOME"} \
 		${cwd_mode:+"--volume=${contr__podman_run__workdir}:${contr__podman_run__workdir}:$cwd_mode"} \
 		${cwd_mode:+"--workdir=$contr__podman_run__workdir"} \
 		${CONTR_PS1:+"--env=PS1=$CONTR_PS1"} \
@@ -1211,6 +1282,7 @@ contr__podman_run__podman_run() {
 		${per_image_profile_file:+"--env=CONTR_PROFILE_2=/run/contr/profile2"} \
 		${image_persistence_volumes} \
 		${cli_persistence_volumes} \
+		${cli_filesystem_volumes} \
 		${contr__podman_run__podman_arguments} \
 		"$@"
 }
@@ -1225,7 +1297,7 @@ usage() {
 	contr__main__usage_podman_options=${contr__main__usage_podman_options:-"  Failed to get Podman options, check if Podman is installed correctly"}
 
 	cat <<EOF >&"${fd:-1}"
-contr 0.8.2
+contr 0.9.0
 Run container exposing the current working directory
 
 Usage:
@@ -1233,22 +1305,23 @@ Usage:
   contr --make-config[=IMAGE]
 
 Options:
-  --make-config[=IMAGE]    Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
+  --make-config[=IMAGE]     Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
   --cwd-mode=(0|4|5|6|7),
-  --cwd-mode={ro,rw,exec}  The permission mode for mounting the current working directory inside the container. If set to 0, CWD will not be mounted inside the container. Numbers 4-7 have the same meanings as in chmod's octal values. Short flags exist for the octal form, as follows:
-  -0                       Do not mount the current working directory inside the container '--cwd-mode=0'
-  -4                       Mount the current working directory with read-only permissions '--cwd-mode=ro'
-  -5                       Mount the current working directory with read and execute permissions '--cwd-mode=ro,exec'
-  -6                       Mount the current working directory with read and write permissions '--cwd-mode=rw'
-  -7                       Mount the current working directory with read, write and execute permissions (default) '--cwd-mode=rw,exec'
-  -n                       Allow network access
-  --no-persist             Override "page.codeberg.contr.persist" label from image, canceling its mount points
-  --persist=PATH[:exec]    Create a mount point at PATH to persist its data across invocations. PATH must be absolute or relative to [~ | home]
-  --pio                    Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
-  --plain                  Do not override the image's entrypoint script
-  --pure                   Ignore all configuration files and custom entrypoint
-  --help                   Print this help text and exit
-  --help-all               Print this help text with all options to podman-run included and exit
+  --cwd-mode={ro,rw,exec}   The permission mode for mounting the current working directory inside the container. If set to 0, CWD will not be mounted inside the container. Numbers 4-7 have the same meanings as in chmod's octal values. Short flags exist for the octal form, as follows:
+  -0                        Do not mount the current working directory inside the container '--cwd-mode=0'
+  -4                        Mount the current working directory with read-only permissions '--cwd-mode=ro'
+  -5                        Mount the current working directory with read and execute permissions '--cwd-mode=ro,exec'
+  -6                        Mount the current working directory with read and write permissions '--cwd-mode=rw'
+  -7                        Mount the current working directory with read, write and execute permissions (default) '--cwd-mode=rw,exec'
+  -n                        Allow network access
+  --filesystem PATH[:exec]  Mount a filesystem path at the same location inside the container.
+  --no-persist              Override "page.codeberg.contr.persist" label from image, canceling its mount points
+  --persist=PATH[:exec]     Create a mount point at PATH to persist its data across invocations. PATH must be absolute or relative to [~ | home]
+  --pio                     Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
+  --plain                   Do not override the image's entrypoint script
+  --pure                    Ignore all configuration files and custom entrypoint
+  --help                    Print this help text and exit
+  --help-all                Print this help text with all options to podman-run included and exit
 
 Podman options:
 $contr__main__usage_podman_options
@@ -1283,7 +1356,7 @@ contr__main__parse_option() {
 		;;
 	--help) usage ;;
 	--help-all) usage '' '' "$podman_run_options" ;;
-	--cwd-mode | --persist) OptionsParser_hasOptArg "$1" 1 ;;
+	--cwd-mode | --filesystem | --persist) OptionsParser_hasOptArg "$1" 1 ;;
 	*)
 		if is_podman_option_with_arg "$2"; then
 			OptionsParser_hasOptArg "$1" 1
