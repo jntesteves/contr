@@ -146,6 +146,7 @@ NS__podman_run() {
 	OptionsParser contr_run NS__parse_option "$@"
 	shift "$(OptionsParser_optCount contr_run)" || exit
 	OptionsParser_destructor contr_run
+	log_debug "[NS__podman_run] image_persistence_volumes=$(to_string $image_persistence_volumes)"
 	log_debug "[NS__podman_run] cli_persistence_volumes=$(to_string $cli_persistence_volumes)"
 	log_debug "[NS__podman_run] cli_filesystem_volumes=$(to_string $cli_filesystem_volumes)"
 	log_debug "[NS__podman_run] NS__podman_arguments=$(to_string $NS__podman_arguments)"
