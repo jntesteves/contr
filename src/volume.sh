@@ -40,6 +40,9 @@ NS__set_cwd_mode() {
 	log_debug "[NS__set_cwd_mode] cwd_mode=$cwd_mode"
 }
 NS__add_cli_filesystem() {
+	if is_home_dir "${1%%:*}"; then
+		abort "Mounting the home directory with the --filesystem option is not allowed. That would expose your entire home directory inside the container, defeating the security purpose of this program."
+	fi
 	NS__volume_option=$(NS__make_volume_noexec "${1%:*}:${1}")
 	cli_filesystem_volumes=$(list $cli_filesystem_volumes "--volume=${NS__volume_option}")
 	unset -v NS__volume_option
