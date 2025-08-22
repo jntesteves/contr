@@ -7,8 +7,9 @@ import \
 	"{ substitute_characters }" from nice_things/text/substitute_characters.sh \
 	"{ OptionsParser, OptionsParser_optCount, OptionsParser_endOptions, OptionsParser_hasOptArg, OptionsParser_destructor }" from nice_things/cli/OptionsParser.sh \
 	"{ write_entrypoint_file }" from ./src/entrypoint.sh \
-	"{ make_publish_local_only, make_volume_noexec, set_cwd_mode }" from ./src/options.sh \
+	"{ make_publish_local_only }" from ./src/network.sh \
 	"{ add_cli_persistence_volume, create_persistence_volumes }" from ./src/persist.sh \
+	"{ make_volume_noexec, set_cwd_mode, add_cli_filesystem }" from ./src/volume.sh \
 	"{ pull_if_missing }" from ./src/image.sh
 #}}}
 # podman_run.sh
@@ -18,6 +19,7 @@ NS__initialize_run_variables() {
 	cwd_mode=rw,exec
 	image_persistence_volumes=
 	cli_persistence_volumes=
+	cli_filesystem_volumes=
 	NS__block_network=1
 	NS__workdir=$(command pwd)
 	NS__user_home=1
@@ -57,6 +59,7 @@ NS__parse_option() {
 	-n) NS__block_network= ;;
 	-[04567]) set_cwd_mode "${2#-}" ;;
 	--cwd-mode) { OptionsParser_hasOptArg "$1" 1 && [ -n "${3-}" ] && set_cwd_mode "$3"; } || usage 2 "Invalid option argument ${2} '${3-}'" ;;
+	--filesystem) { OptionsParser_hasOptArg "$1" 1 && [ -n "${3-}" ] && add_cli_filesystem "$3"; } || usage 2 "Invalid option argument ${2} '${3-}'" ;;
 	--no-persist) image_persistence_volumes= ;;
 	--persist) { OptionsParser_hasOptArg "$1" 1 && [ -n "${3-}" ] && add_cli_persistence_volume "$3" "$image_base_name"; } || usage 2 "Invalid option argument ${2} '${3-}'" ;;
 	--pio)
@@ -144,6 +147,7 @@ NS__podman_run() {
 	shift "$(OptionsParser_optCount contr_run)" || exit
 	OptionsParser_destructor contr_run
 	log_debug "[NS__podman_run] cli_persistence_volumes=$(to_string $cli_persistence_volumes)"
+	log_debug "[NS__podman_run] cli_filesystem_volumes=$(to_string $cli_filesystem_volumes)"
 	log_debug "[NS__podman_run] NS__podman_arguments=$(to_string $NS__podman_arguments)"
 	log_debug "[NS__podman_run] \$*=$(to_string "$@")"
 
@@ -183,6 +187,7 @@ NS__podman_run() {
 		${per_image_profile_file:+"--env=CONTR_PROFILE_2=/run/contr/profile2"} \
 		${image_persistence_volumes} \
 		${cli_persistence_volumes} \
+		${cli_filesystem_volumes} \
 		${NS__podman_arguments} \
 		"$@"
 }

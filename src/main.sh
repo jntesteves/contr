@@ -30,22 +30,23 @@ Usage:
   contr --make-config[=IMAGE]
 
 Options:
-  --make-config[=IMAGE]    Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
+  --make-config[=IMAGE]     Make example config files at CONTR_CONFIG_DIR. If optional IMAGE is provided, make per-image config files for that image instead of the global config files
   --cwd-mode=(0|4|5|6|7),
-  --cwd-mode={ro,rw,exec}  The permission mode for mounting the current working directory inside the container. If set to 0, CWD will not be mounted inside the container. Numbers 4-7 have the same meanings as in chmod's octal values. Short flags exist for the octal form, as follows:
-  -0                       Do not mount the current working directory inside the container '--cwd-mode=0'
-  -4                       Mount the current working directory with read-only permissions '--cwd-mode=ro'
-  -5                       Mount the current working directory with read and execute permissions '--cwd-mode=ro,exec'
-  -6                       Mount the current working directory with read and write permissions '--cwd-mode=rw'
-  -7                       Mount the current working directory with read, write and execute permissions (default) '--cwd-mode=rw,exec'
-  -n                       Allow network access
-  --no-persist             Override "page.codeberg.contr.persist" label from image, canceling its mount points
-  --persist=PATH[:exec]    Create a mount point at PATH to persist its data across invocations. PATH must be absolute or relative to [~ | home]
-  --pio                    Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
-  --plain                  Do not override the image's entrypoint script
-  --pure                   Ignore all configuration files and custom entrypoint
-  --help                   Print this help text and exit
-  --help-all               Print this help text with all options to podman-run included and exit
+  --cwd-mode={ro,rw,exec}   The permission mode for mounting the current working directory inside the container. If set to 0, CWD will not be mounted inside the container. Numbers 4-7 have the same meanings as in chmod's octal values. Short flags exist for the octal form, as follows:
+  -0                        Do not mount the current working directory inside the container '--cwd-mode=0'
+  -4                        Mount the current working directory with read-only permissions '--cwd-mode=ro'
+  -5                        Mount the current working directory with read and execute permissions '--cwd-mode=ro,exec'
+  -6                        Mount the current working directory with read and write permissions '--cwd-mode=rw'
+  -7                        Mount the current working directory with read, write and execute permissions (default) '--cwd-mode=rw,exec'
+  -n                        Allow network access
+  --filesystem PATH[:exec]  Mount a filesystem path at the same location inside the container.
+  --no-persist              Override "page.codeberg.contr.persist" label from image, canceling its mount points
+  --persist=PATH[:exec]     Create a mount point at PATH to persist its data across invocations. PATH must be absolute or relative to [~ | home]
+  --pio                     Per-Image Override: per-image config files override instead of adding to global config files. Useful when the per-image config conflicts with the global config
+  --plain                   Do not override the image's entrypoint script
+  --pure                    Ignore all configuration files and custom entrypoint
+  --help                    Print this help text and exit
+  --help-all                Print this help text with all options to podman-run included and exit
 
 Podman options:
 $NS__usage_podman_options
@@ -80,7 +81,7 @@ NS__parse_option() {
 		;;
 	--help) usage ;;
 	--help-all) usage '' '' "$podman_run_options" ;;
-	--cwd-mode | --persist) OptionsParser_hasOptArg "$1" 1 ;;
+	--cwd-mode | --filesystem | --persist) OptionsParser_hasOptArg "$1" 1 ;;
 	*)
 		if is_podman_option_with_arg "$2"; then
 			OptionsParser_hasOptArg "$1" 1
