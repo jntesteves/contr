@@ -44,10 +44,13 @@ if [ /root != "$HOME" ]; then
 		"/root/." | "/root/.." | "/root/.*" | "/root/*") ;;
 		*)
 			log_debug "[entrypoint.sh] ln -s ${file} ${HOME}"
-			ln -s "$file" "$HOME" && :
+			if ! _error=$(ln -s "$file" "$HOME" 2>&1); then
+				log_debug "[entrypoint.sh] error: ${_error}"
+			fi
 			;;
 		esac
 	done
+	unset -v _error
 fi
 
 # If HOME is in /var/home or similar, add a link to it in /home
@@ -57,17 +60,20 @@ case "$HOME" in /home/*) ;; *)
 	;;
 esac
 
-if log_is_level debug; then
-	_dbg=
-else
-	_dbg='#'
-fi
 export ENV="${HOME}/.profile"
 
 write_profile_files() {
+	if log_is_level debug; then
+		_dbg=
+	else
+		_dbg='#'
+	fi
 	for p in .bashrc .cshrc .kshrc .profile .zshrc; do
-		printf "\\n%s printf '~/%s sourcing %s=%s\\\\n'\\n. '%s'\\n" "$_dbg" "$p" "$1" "$2" "$2" >>"${HOME}/$p"
+		if ! _error=$( (printf "\\n%s printf '~/%s sourcing %s=%s\\\\n'\\n. '%s'\\n" "$_dbg" "$p" "$1" "$2" "$2" >>"${HOME}/$p") 2>&1); then
+			log_debug "[entrypoint.sh] error: ${_error}"
+		fi
 	done
+	unset -v _dbg _error
 }
 if [ -f "$CONTR_PROFILE_1" ]; then write_profile_files CONTR_PROFILE_1 "$CONTR_PROFILE_1"; fi
 if [ -f "$CONTR_PROFILE_2" ]; then write_profile_files CONTR_PROFILE_2 "$CONTR_PROFILE_2"; fi
